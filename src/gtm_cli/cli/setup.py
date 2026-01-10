@@ -1,4 +1,4 @@
-"""Setup wizard for GTM Orchestrator."""
+"""Setup wizard for GTM CLI."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
-from gtm_orchestrator.core.auth import get_auth_manager
-from gtm_orchestrator.core.config import get_config_manager
-from gtm_orchestrator.utils.output import print_error, print_info, print_success
+from gtm_cli.core.auth import get_auth_manager
+from gtm_cli.core.config import get_config_manager
+from gtm_cli.utils.output import print_error, print_info, print_success
 
 console = Console()
 
@@ -75,7 +75,7 @@ def _check_api_enabled(project: str) -> bool:
 
 
 def setup() -> None:
-    """Interactive setup wizard for GTM Orchestrator.
+    """Interactive setup wizard for GTM CLI.
 
     Guides you through:
     1. GCP project selection/creation
@@ -85,8 +85,8 @@ def setup() -> None:
     5. Logging in
     """
     console.print(Panel.fit(
-        "[bold blue]GTM Orchestrator Setup Wizard[/bold blue]\n\n"
-        "This wizard will help you set up authentication for GTM Orchestrator.\n"
+        "[bold blue]GTM CLI Setup Wizard[/bold blue]\n\n"
+        "This wizard will help you set up authentication for GTM CLI.\n"
         "You'll need a Google Cloud Platform account.",
         title="Welcome",
     ))
@@ -120,7 +120,7 @@ def setup() -> None:
     # Step 2: Select/create project
     console.print("[bold]Step 2:[/bold] GCP Project setup...")
     console.print("""
-[dim]We recommend creating a dedicated project for GTM Orchestrator.
+[dim]We recommend creating a dedicated project for GTM CLI.
 This keeps your OAuth credentials isolated and makes it easy to
 manage or remove later.[/dim]
 """)
@@ -166,8 +166,8 @@ manage or remove later.[/dim]
     if not project:
         # Create new project with readable name and unique ID
         suffix = "".join(random.choices(string.digits, k=6))
-        default_id = f"gtm-orchestrator-{suffix}"
-        project_name = "GTM Orchestrator"
+        default_id = f"gtm-cli-{suffix}"
+        project_name = "GTM CLI"
 
         console.print(f"[dim]Creating project '{project_name}' with unique ID...[/dim]")
         project_id = Prompt.ask(
@@ -220,7 +220,7 @@ This step requires manual configuration in the Google Cloud Console.
 1. Click the link below to open the OAuth consent screen
 2. Select [bold]External[/bold] user type (or Internal if using Workspace)
 3. Fill in the required fields:
-   - App name: [bold]GTM Orchestrator[/bold] (or any name)
+   - App name: [bold]GTM CLI[/bold] (or any name)
    - User support email: [bold]Your email[/bold]
    - Developer contact: [bold]Your email[/bold]
 4. Click [bold]Save and Continue[/bold] through the scopes page
@@ -245,7 +245,7 @@ This step requires manual configuration in the Google Cloud Console.
 1. Click the link below to open the Credentials page
 2. Click [bold]+ CREATE CREDENTIALS[/bold] → [bold]OAuth client ID[/bold]
 3. Application type: [bold]Desktop app[/bold]
-4. Name: [bold]GTM Orchestrator[/bold] (or any name)
+4. Name: [bold]GTM CLI[/bold] (or any name)
 5. Click [bold]Create[/bold]
 6. Click [bold]DOWNLOAD JSON[/bold]
 """)
@@ -313,7 +313,7 @@ This step requires manual configuration in the Google Cloud Console.
     console.print()
     console.print(Panel.fit(
         "[bold green]Setup Complete![/bold green]\n\n"
-        "You can now use GTM Orchestrator:\n\n"
+        "You can now use GTM CLI:\n\n"
         "  [bold]gtm account list[/bold]      - List your GTM accounts\n"
         "  [bold]gtm container list[/bold]    - List containers\n"
         "  [bold]gtm tag list[/bold]          - List tags\n"

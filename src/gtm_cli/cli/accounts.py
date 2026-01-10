@@ -4,9 +4,9 @@ from typing import Annotated
 
 import typer
 
-from gtm_orchestrator.cli.main import get_state
-from gtm_orchestrator.core.client import get_client
-from gtm_orchestrator.utils.output import output
+from gtm_cli.cli.main import get_state
+from gtm_cli.core.client import get_client
+from gtm_cli.utils.output import output
 
 app = typer.Typer(help="Manage GTM accounts")
 

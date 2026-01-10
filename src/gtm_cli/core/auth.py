@@ -14,8 +14,8 @@ from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials as OAuth2Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-from gtm_orchestrator.core.config import ConfigManager, Profile, get_config_manager
-from gtm_orchestrator.utils.errors import (
+from gtm_cli.core.config import ConfigManager, Profile, get_config_manager
+from gtm_cli.utils.errors import (
     AuthenticationError,
     ConfigurationError,
     NotLoggedInError,
@@ -365,7 +365,7 @@ class AuthManager:
                 profile = Profile(name="default")
                 self.config_manager.save_profile(profile)
             else:
-                from gtm_orchestrator.utils.errors import ProfileNotFoundError
+                from gtm_cli.utils.errors import ProfileNotFoundError
                 raise ProfileNotFoundError(profile_name)
 
         profile = self.config_manager.get_profile(profile_name)

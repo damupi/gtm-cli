@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field
 
-from gtm_orchestrator.utils.errors import (
+from gtm_cli.utils.errors import (
     ConfigurationError,
     ProfileExistsError,
     ProfileNotFoundError,

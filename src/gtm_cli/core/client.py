@@ -7,9 +7,9 @@ from google.auth.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from gtm_orchestrator.core.auth import AuthManager, get_auth_manager
-from gtm_orchestrator.core.config import ConfigManager, get_config_manager
-from gtm_orchestrator.utils.errors import (
+from gtm_cli.core.auth import AuthManager, get_auth_manager
+from gtm_cli.core.config import ConfigManager, get_config_manager
+from gtm_cli.utils.errors import (
     APIError,
     PermissionDeniedError,
     ResourceNotFoundError,

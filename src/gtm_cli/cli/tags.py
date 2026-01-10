@@ -1,4 +1,4 @@
-"""Trigger CLI commands."""
+"""Tag CLI commands."""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 
-from gtm_orchestrator.cli.main import get_state
-from gtm_orchestrator.core.client import get_client
-from gtm_orchestrator.utils.output import output, print_error
+from gtm_cli.cli.main import get_state
+from gtm_cli.core.client import get_client
+from gtm_cli.utils.output import output, print_error
 
 if TYPE_CHECKING:
-    from gtm_orchestrator.cli.main import State
+    from gtm_cli.cli.main import State
 
-app = typer.Typer(help="Manage GTM triggers")
+app = typer.Typer(help="Manage GTM tags")
 
 
 def _require_ids(state: State) -> tuple[str, str, str]:
@@ -31,13 +31,13 @@ def _require_ids(state: State) -> tuple[str, str, str]:
 
 
 @app.command("list")
-def list_triggers() -> None:
-    """List all triggers in the workspace."""
+def list_tags() -> None:
+    """List all tags in the workspace."""
     state = get_state()
     account_id, container_id, workspace_id = _require_ids(state)
     client = get_client()
 
-    triggers = client.list_triggers(
+    tags = client.list_tags(
         account_id=account_id,
         container_id=container_id,
         workspace_id=workspace_id,
@@ -47,26 +47,28 @@ def list_triggers() -> None:
 
     data = [
         {
-            "trigger_id": t.get("triggerId", ""),
+            "tag_id": t.get("tagId", ""),
             "name": t.get("name", ""),
             "type": t.get("type", ""),
         }
-        for t in triggers
+        for t in tags
     ]
 
-    output(data, fmt=state.output_format, title="Triggers")
+    output(data, fmt=state.output_format, title="Tags")
 
 
 @app.command("get")
-def get_trigger(
-    trigger_id: Annotated[str, typer.Argument(help="Trigger ID")],
+def get_tag(
+    tag_id: Annotated[str, typer.Argument(help="Tag ID")],
 ) -> None:
-    """Get details of a specific trigger."""
+    """Get details of a specific tag."""
     state = get_state()
     account_id, container_id, workspace_id = _require_ids(state)
     client = get_client()
 
-    triggers = client.list_triggers(
+    # Note: Full implementation would call client.get_tag()
+    # For now, list and filter
+    tags = client.list_tags(
         account_id=account_id,
         container_id=container_id,
         workspace_id=workspace_id,
@@ -74,9 +76,9 @@ def get_trigger(
         service_account_path=state.service_account,
     )
 
-    trigger = next((t for t in triggers if t.get("triggerId") == trigger_id), None)
-    if not trigger:
-        print_error(f"Trigger '{trigger_id}' not found")
+    tag = next((t for t in tags if t.get("tagId") == tag_id), None)
+    if not tag:
+        print_error(f"Tag '{tag_id}' not found")
         raise typer.Exit(1)
 
-    output(trigger, fmt=state.output_format)
+    output(tag, fmt=state.output_format)

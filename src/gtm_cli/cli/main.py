@@ -1,4 +1,4 @@
-"""Main CLI entry point for GTM Orchestrator."""
+"""Main CLI entry point for GTM CLI."""
 
 from pathlib import Path
 from typing import Annotated
@@ -6,13 +6,13 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from gtm_orchestrator import __version__
-from gtm_orchestrator.utils.output import OutputFormat
+from gtm_cli import __version__
+from gtm_cli.utils.output import OutputFormat
 
 # Create the main app
 app = typer.Typer(
     name="gtm",
-    help="GTM Orchestrator - CLI for Google Tag Manager API v2",
+    help="GTM CLI - Command-line tool for Google Tag Manager API v2",
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
@@ -43,7 +43,7 @@ state = State()
 def version_callback(value: bool) -> None:
     """Print version and exit."""
     if value:
-        console.print(f"gtm-orchestrator version {__version__}")
+        console.print(f"gtm-cli version {__version__}")
         raise typer.Exit()
 
 
@@ -161,16 +161,16 @@ def get_state() -> State:
 # Import and register subcommands
 def register_commands() -> None:
     """Register all subcommands."""
-    from gtm_orchestrator.cli import accounts as accounts_cli
-    from gtm_orchestrator.cli import auth as auth_cli
-    from gtm_orchestrator.cli import containers as containers_cli
-    from gtm_orchestrator.cli import profile as profile_cli
-    from gtm_orchestrator.cli import setup as setup_cli
-    from gtm_orchestrator.cli import tags as tags_cli
-    from gtm_orchestrator.cli import triggers as triggers_cli
-    from gtm_orchestrator.cli import variables as variables_cli
-    from gtm_orchestrator.cli import versions as versions_cli
-    from gtm_orchestrator.cli import workspaces as workspaces_cli
+    from gtm_cli.cli import accounts as accounts_cli
+    from gtm_cli.cli import auth as auth_cli
+    from gtm_cli.cli import containers as containers_cli
+    from gtm_cli.cli import profile as profile_cli
+    from gtm_cli.cli import setup as setup_cli
+    from gtm_cli.cli import tags as tags_cli
+    from gtm_cli.cli import triggers as triggers_cli
+    from gtm_cli.cli import variables as variables_cli
+    from gtm_cli.cli import versions as versions_cli
+    from gtm_cli.cli import workspaces as workspaces_cli
 
     # Register commands
     app.command(name="setup")(setup_cli.setup)

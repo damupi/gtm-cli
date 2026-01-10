@@ -6,10 +6,10 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from gtm_orchestrator.core.auth import get_auth_manager
-from gtm_orchestrator.core.config import Profile, get_config_manager
-from gtm_orchestrator.utils.errors import ProfileExistsError, ProfileNotFoundError
-from gtm_orchestrator.utils.output import print_error, print_success
+from gtm_cli.core.auth import get_auth_manager
+from gtm_cli.core.config import Profile, get_config_manager
+from gtm_cli.utils.errors import ProfileExistsError, ProfileNotFoundError
+from gtm_cli.utils.output import print_error, print_success
 
 app = typer.Typer(help="Manage GTM profiles")
 console = Console()
@@ -79,7 +79,7 @@ def create_profile(
     config_manager = get_config_manager()
 
     try:
-        from gtm_orchestrator.core.config import AuthConfig, DefaultsConfig
+        from gtm_cli.core.config import AuthConfig, DefaultsConfig
 
         profile = Profile(
             name=name,

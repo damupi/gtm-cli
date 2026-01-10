@@ -5,9 +5,9 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from gtm_orchestrator.core.auth import get_auth_manager
-from gtm_orchestrator.utils.errors import AuthenticationError, ConfigurationError
-from gtm_orchestrator.utils.output import print_error, print_info, print_success
+from gtm_cli.core.auth import get_auth_manager
+from gtm_cli.utils.errors import AuthenticationError, ConfigurationError
+from gtm_cli.utils.output import print_error, print_info, print_success
 
 console = Console()
 
