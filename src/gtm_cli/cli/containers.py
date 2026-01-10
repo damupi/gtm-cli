@@ -4,6 +4,7 @@ from typing import Annotated
 
 import typer
 
+from gtm_cli.cli.helpers import resolve_account_id
 from gtm_cli.cli.main import get_state
 from gtm_cli.core.client import get_client
 from gtm_cli.utils.output import output, print_error
@@ -14,9 +15,9 @@ app = typer.Typer(
 Containers hold all your tags, triggers, and variables. Each container has a GTM-XXXX ID.
 A container is typically one website or app.
 
-Requires: --account-id (or set default in profile)
+Auto-detects account if you have only one.
 
-Example: gtm container list -a 123456
+Example: gtm container list
 """
 )
 
@@ -26,13 +27,10 @@ def list_containers() -> None:
     """List all containers in the account."""
     state = get_state()
     client = get_client()
-
-    if not state.account_id:
-        print_error("No account ID. Use --account-id or set a default in your profile.")
-        raise typer.Exit(1)
+    account_id = resolve_account_id(state, client)
 
     containers = client.list_containers(
-        account_id=state.account_id,
+        account_id=account_id,
         profile_name=state.profile,
         service_account_path=state.service_account,
     )
@@ -60,10 +58,7 @@ def get_container(
     """Get details of a specific container."""
     state = get_state()
     client = get_client()
-
-    if not state.account_id:
-        print_error("No account ID. Use --account-id or set a default in your profile.")
-        raise typer.Exit(1)
+    account_id = resolve_account_id(state, client)
 
     cid = container_id or state.container_id
     if not cid:
@@ -71,7 +66,7 @@ def get_container(
         raise typer.Exit(1)
 
     container = client.get_container(
-        account_id=state.account_id,
+        account_id=account_id,
         container_id=cid,
         profile_name=state.profile,
         service_account_path=state.service_account,

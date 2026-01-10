@@ -1,47 +1,33 @@
 """Version CLI commands."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 import typer
 
+from gtm_cli.cli.helpers import resolve_account_id, resolve_container_id
 from gtm_cli.cli.main import get_state
 from gtm_cli.core.client import get_client
 from gtm_cli.utils.output import output, print_error
-
-if TYPE_CHECKING:
-    from gtm_cli.cli.main import State
 
 app = typer.Typer(
     help="""Manage GTM container versions.
 
 Versions are published snapshots of your container. Each publish creates a new version.
 
-Requires: --account-id, --container-id (or set defaults in profile)
+Auto-detects account/container if you have only one of each.
 
-Example: gtm version list -a 123456 -c GTM-XXXX
+Example: gtm version list
 """
 )
-
-
-def _require_account_container(state: State) -> tuple[str, str]:
-    """Validate account and container IDs are set."""
-    if not state.account_id:
-        print_error("No account ID. Use --account-id or set a default in your profile.")
-        raise typer.Exit(1)
-    if not state.container_id:
-        print_error("No container ID. Use --container-id or set a default in your profile.")
-        raise typer.Exit(1)
-    return state.account_id, state.container_id
 
 
 @app.command("list")
 def list_versions() -> None:
     """List all versions in the container."""
     state = get_state()
-    account_id, container_id = _require_account_container(state)
     client = get_client()
+    account_id = resolve_account_id(state, client)
+    container_id = resolve_container_id(state, client, account_id)
 
     versions = client.list_versions(
         account_id=account_id,
@@ -70,8 +56,9 @@ def get_version(
 ) -> None:
     """Get details of a specific version."""
     state = get_state()
-    account_id, container_id = _require_account_container(state)
     client = get_client()
+    account_id = resolve_account_id(state, client)
+    container_id = resolve_container_id(state, client, account_id)
 
     versions = client.list_versions(
         account_id=account_id,
