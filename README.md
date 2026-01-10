@@ -184,6 +184,7 @@ Remember to grant the service account access in Tag Manager:
 | `gtm workspace get` | Get workspace details |
 | `gtm tag list` | List tags |
 | `gtm tag get` | Get tag details |
+| `gtm tag audit-consent` | Audit tags for consent configuration issues |
 | `gtm trigger list` | List triggers |
 | `gtm trigger get` | Get trigger details |
 | `gtm variable list` | List variables |
@@ -203,6 +204,7 @@ Remember to grant the service account access in Tag Manager:
 --verbose, -v       Enable debug logging
 --dry-run           Show API calls without executing
 --yes, -y           Skip confirmation prompts
+--authuser, -u      Append authuser=N to GTM URLs (for multi-account Google sessions)
 ```
 
 ## Configuration

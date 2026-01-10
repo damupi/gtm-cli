@@ -12,7 +12,7 @@ from gtm_cli.cli.helpers import (
 )
 from gtm_cli.cli.main import get_state
 from gtm_cli.core.client import get_client
-from gtm_cli.utils.output import output, print_error
+from gtm_cli.utils.output import output, print_error, print_success, print_warning
 
 
 def _relative_time(fingerprint: str) -> str:
@@ -178,3 +178,102 @@ def get_tag(
         raise typer.Exit(1)
 
     output(tag, fmt=state.output_format)
+
+
+@app.command("audit-consent")
+def audit_consent(
+    show_all: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            "-a",
+            help="Show all tags with non-standard consent (including 'notSet')",
+        ),
+    ] = False,
+) -> None:
+    """Audit tags for consent configuration issues.
+
+    Finds tags with "Additional Consent Required" set, which may cause issues
+    if the tag already has built-in consent handling.
+
+    By default, shows only tags with explicit consent requirements ('needed').
+    Use --all to include tags with 'notSet' consent status.
+
+    Tip: Use --authuser N global option to append authuser parameter to URLs.
+    """
+    state = get_state()
+
+    def add_authuser(url: str) -> str:
+        """Add authuser parameter to GTM URL if specified."""
+        if not url or state.authuser is None:
+            return url
+        separator = "&" if "?" in url else "?"
+        return f"{url}{separator}authuser={state.authuser}"
+
+    client = get_client()
+    account_id = resolve_account_id(state, client)
+    container_id = resolve_container_id(state, client, account_id)
+    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+
+    tags = client.list_tags(
+        account_id=account_id,
+        container_id=container_id,
+        workspace_id=workspace_id,
+        profile_name=state.profile,
+        service_account_path=state.service_account,
+    )
+
+    # Categorize tags by consent status
+    needed_tags: list[dict[str, Any]] = []
+    not_set_tags: list[dict[str, Any]] = []
+    not_needed_tags: list[dict[str, Any]] = []
+
+    for tag in tags:
+        consent = tag.get("consentSettings", {})
+        status = consent.get("consentStatus", "notNeeded")
+
+        if status == "needed":
+            consent_types = consent.get("consentType", {}).get("list", [])
+            types_list = [c.get("value", "") for c in consent_types]
+            needed_tags.append({
+                "name": tag.get("name", ""),
+                "type": tag.get("type", ""),
+                "consent_required": ", ".join(types_list),
+                "url": add_authuser(tag.get("tagManagerUrl", "")),
+            })
+        elif status == "notSet":
+            not_set_tags.append({
+                "name": tag.get("name", ""),
+                "type": tag.get("type", ""),
+                "url": add_authuser(tag.get("tagManagerUrl", "")),
+            })
+        else:
+            not_needed_tags.append(tag)
+
+    # Output results
+    if needed_tags:
+        print_warning(f"Found {len(needed_tags)} tag(s) with EXPLICIT additional consent required:")
+        output(
+            needed_tags,
+            fmt=state.output_format,
+            columns=["name", "type", "consent_required", "url"],
+            title="Tags with Additional Consent Required",
+        )
+    else:
+        print_success("No tags with explicit additional consent requirements found.")
+
+    if show_all and not_set_tags:
+        print_warning(f"\nFound {len(not_set_tags)} tag(s) with consent 'notSet':")
+        output(
+            not_set_tags,
+            fmt=state.output_format,
+            columns=["name", "type", "url"],
+            title="Tags with Consent Not Set",
+        )
+
+    # Summary
+    print("\n--- Summary ---")
+    print(f"Total tags: {len(tags)}")
+    print(f"  Consent required (needs review): {len(needed_tags)}")
+    print(f"  Consent not set: {len(not_set_tags)}")
+    print(f"  No additional consent: {len(not_needed_tags)}")

@@ -35,6 +35,7 @@ class State:
         self.verbose: bool = False
         self.dry_run: bool = False
         self.yes: bool = False
+        self.authuser: int | None = None
 
 
 state = State()
@@ -126,6 +127,15 @@ def main(
             help="Skip confirmation prompts",
         ),
     ] = False,
+    authuser: Annotated[
+        int | None,
+        typer.Option(
+            "--authuser",
+            "-u",
+            help="Append authuser=N to GTM URLs (for multi-account Google sessions)",
+            envvar="GTM_AUTHUSER",
+        ),
+    ] = None,
     _version: Annotated[
         bool,
         typer.Option(
@@ -165,6 +175,7 @@ def main(
     state.verbose = verbose
     state.dry_run = dry_run
     state.yes = yes
+    state.authuser = authuser
 
 
 def get_state() -> State:
