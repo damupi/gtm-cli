@@ -5,10 +5,12 @@ A modern Python CLI for Google Tag Manager API v2.
 ## Features
 
 - **Easy setup** - Interactive wizard handles GCP configuration
+- **Smart defaults** - Auto-detects account/container/workspace when you have only one
 - **Team-friendly** - Share OAuth credentials for quick teammate onboarding
 - **Multi-profile** - Manage multiple GTM accounts with named profiles
 - **Flexible auth** - OAuth2 for interactive use, service accounts for CI/CD
-- **Rich output** - JSON, YAML, or formatted tables
+- **Rich output** - JSON, YAML, or formatted tables (auto-switches to plain for piping)
+- **Unix-friendly** - Pipe output to grep, awk, cut, etc.
 
 ## Installation
 
@@ -61,30 +63,63 @@ That's it! One command downloads the credentials and logs you in.
 # List your GTM accounts
 gtm account list
 
-# List containers (uses default account from profile)
+# List containers (auto-detects account if you have only one)
 gtm container list
 
-# List tags in a workspace
-gtm tag list --account-id 123456 --container-id GTM-XXXX --workspace-id 1
+# List tags (auto-detects account/container/workspace)
+gtm tag list
+
+# If you have multiple containers, specify which one
+gtm -c GTM-XXXX tag list
 
 # Different output formats
 gtm account list --format json
 gtm account list --format yaml
 ```
 
+### Tag List
+
+The tag list shows columns matching the GTM web interface:
+
+```bash
+gtm tag list                      # sorted by modified (newest first)
+gtm tag list --sort name          # alphabetical
+gtm tag list --sort folder        # grouped by folder
+gtm tag list --sort name --reverse  # Z-A
+```
+
+### Piping & Scripting
+
+Output auto-switches to plain tab-separated format when piped:
+
+```bash
+# Find paused tags
+gtm tag list | grep paused
+
+# Get just tag names
+gtm tag list | cut -f1
+
+# Count tags per folder
+gtm tag list | cut -f4 | sort | uniq -c
+
+# Use with jq for JSON processing
+gtm tag list --format json | jq '.[].name'
+```
+
 ## Multi-Profile Support
 
-Manage multiple GTM accounts with named profiles:
+Profiles store default account/container/workspace IDs. OAuth tokens are shared across all profiles (you only need to login once).
 
 ```bash
 # Create a profile with default IDs
 gtm profile create work --account-id 123456 --container-id GTM-XXXX
 
+# Now commands use those defaults automatically
+gtm profile use work
+gtm tag list  # Uses work profile's account/container
+
 # List profiles
 gtm profile list
-
-# Switch default profile
-gtm profile use work
 
 # Use a specific profile for a command
 gtm --profile work tag list
@@ -164,7 +199,7 @@ Remember to grant the service account access in Tag Manager:
 --container-id, -c  Override default container ID
 --workspace-id, -w  Override default workspace ID
 --service-account   Use service account credentials file
---format, -f        Output format: json, yaml, table (default: table)
+--format, -f        Output format: json, yaml, table, plain (default: table)
 --verbose, -v       Enable debug logging
 --dry-run           Show API calls without executing
 --yes, -y           Skip confirmation prompts

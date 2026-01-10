@@ -1,7 +1,7 @@
 """Tag CLI commands."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -70,7 +70,7 @@ def list_tags(
         typer.Option(
             "--sort",
             "-s",
-            help="Sort by column: name, type, folder, modified (default: modified)",
+            help="Sort by: name, type, triggers, folder, modified (default: modified)",
         ),
     ] = "modified",
     reverse: Annotated[
@@ -117,10 +117,10 @@ def list_tags(
     )
     trigger_names = {t.get("triggerId"): t.get("name") for t in triggers}
 
-    def get_firing_triggers(tag: dict) -> str:
+    def get_firing_triggers(tag: dict[str, Any]) -> str:
         """Get comma-separated list of firing trigger names."""
         trigger_ids = tag.get("firingTriggerId", [])
-        names = [trigger_names.get(tid, tid) for tid in trigger_ids]
+        names = [str(trigger_names.get(tid, tid)) for tid in trigger_ids]
         return ", ".join(names) if names else ""
 
     data = [

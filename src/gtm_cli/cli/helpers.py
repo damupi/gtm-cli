@@ -30,7 +30,7 @@ def resolve_account_id(state: State, client: GTMClient) -> str:
     )
 
     if len(accounts) == 1:
-        account_id = accounts[0].get("accountId", "")
+        account_id = str(accounts[0].get("accountId", ""))
         print_info(f"Using account: {accounts[0].get('name')} ({account_id})")
         return account_id
 
@@ -66,14 +66,14 @@ def resolve_container_id(state: State, client: GTMClient, account_id: str) -> st
         # Check if it's a publicId (GTM-XXXX) and resolve to containerId
         for c in containers:
             if c.get("publicId") == state.container_id:
-                return c.get("containerId", "")
+                return str(c.get("containerId", ""))
             if c.get("containerId") == state.container_id:
                 return state.container_id
         # Not found - return as-is and let API error handle it
         return state.container_id
 
     if len(containers) == 1:
-        container_id = containers[0].get("containerId", "")
+        container_id = str(containers[0].get("containerId", ""))
         public_id = containers[0].get("publicId", "")
         print_info(f"Using container: {containers[0].get('name')} ({public_id})")
         return container_id
@@ -121,7 +121,7 @@ def resolve_workspace_id(
 
     # If only one workspace, use it
     if len(workspaces) == 1:
-        workspace_id = workspaces[0].get("workspaceId", "")
+        workspace_id = str(workspaces[0].get("workspaceId", ""))
         print_info(f"Using workspace: {workspaces[0].get('name')} ({workspace_id})")
         return workspace_id
 
