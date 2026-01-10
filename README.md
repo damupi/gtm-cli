@@ -256,6 +256,39 @@ ruff format src/
 pre-commit run --all-files
 ```
 
+### Commit Convention
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) for automatic versioning:
+
+| Prefix | Description | Version Bump |
+|--------|-------------|--------------|
+| `feat:` | New feature | Minor (1.x.0) |
+| `fix:` | Bug fix | Patch (1.0.x) |
+| `docs:` | Documentation only | Patch |
+| `refactor:` | Code refactoring | Patch |
+| `perf:` | Performance improvement | Patch |
+| `chore:` | Maintenance (no release) | None |
+| `ci:` | CI/CD changes (no release) | None |
+
+Examples:
+```bash
+git commit -m "feat: add workspace publish command"
+git commit -m "fix: correct authuser URL placement"
+git commit -m "docs: update README with new commands"
+```
+
+### Release Process
+
+Releases are automated with [Release Please](https://github.com/googleapis/release-please):
+
+1. Push commits to `main` using conventional commit messages
+2. Release Please automatically creates/updates a "Release PR"
+3. The PR accumulates changes and updates the changelog
+4. When you merge the Release PR:
+   - Version is bumped in `pyproject.toml` and `__init__.py`
+   - GitHub Release is created with changelog
+   - Package is published to PyPI
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
