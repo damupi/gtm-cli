@@ -224,7 +224,7 @@ Configuration is stored in `~/.gtm-cli/`:
 ### Setup
 
 ```bash
-git clone https://github.com/OWNER/gtm-cli.git
+git clone https://github.com/oppianmatt/gtm-cli.git
 cd gtm-cli
 
 # Create venv and install

@@ -45,9 +45,9 @@ dev = [
 gtm = "gtm_cli.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/OWNER/gtm-cli"
-Documentation = "https://github.com/OWNER/gtm-cli#readme"
-Repository = "https://github.com/OWNER/gtm-cli"
+Homepage = "https://github.com/oppianmatt/gtm-cli"
+Documentation = "https://github.com/oppianmatt/gtm-cli#readme"
+Repository = "https://github.com/oppianmatt/gtm-cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gtm_cli"]
