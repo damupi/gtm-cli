@@ -117,18 +117,34 @@ def setup() -> None:
 
     # Step 2: Select/create project
     console.print("[bold]Step 2:[/bold] GCP Project setup...")
+    console.print("""
+[dim]We recommend creating a dedicated project for GTM Orchestrator.
+This keeps your OAuth credentials isolated and makes it easy to
+manage or remove later.[/dim]
+""")
 
     current_project = _get_current_project()
     projects = _list_projects()
 
-    if current_project:
-        use_current = Confirm.ask(f"Use current project [bold]{current_project}[/bold]?", default=True)
-        project = current_project if use_current else None
-    else:
-        project = None
+    # Default: create new project (recommended)
+    create_new = Confirm.ask(
+        "Create a new dedicated project? [bold](recommended)[/bold]",
+        default=True
+    )
 
-    if not project:
-        if projects:
+    project: str | None = None
+
+    if not create_new:
+        # User wants to use existing project
+        if current_project:
+            use_current = Confirm.ask(
+                f"Use current project [bold]{current_project}[/bold]?",
+                default=True
+            )
+            if use_current:
+                project = current_project
+
+        if not project and projects:
             console.print("\nAvailable projects:")
             for i, p in enumerate(projects[:10], 1):
                 console.print(f"  {i}. {p}")
@@ -136,22 +152,22 @@ def setup() -> None:
                 console.print(f"  ... and {len(projects) - 10} more")
 
             choice = Prompt.ask(
-                "\nEnter project ID or number (or 'new' to create)",
-                default=projects[0] if projects else "new"
+                "\nEnter project ID or number",
+                default=projects[0] if projects else ""
             )
 
-            if choice.lower() == "new":
-                project = None
-            elif choice.isdigit() and 1 <= int(choice) <= len(projects):
+            if choice.isdigit() and 1 <= int(choice) <= len(projects):
                 project = projects[int(choice) - 1]
-            else:
+            elif choice:
                 project = choice
-        else:
-            project = None
 
     if not project:
         # Create new project
-        project_id = Prompt.ask("Enter new project ID (e.g., my-gtm-cli)")
+        default_name = "gtm-cli"
+        project_id = Prompt.ask(
+            "Enter new project ID",
+            default=default_name
+        )
         console.print(f"\nCreating project [bold]{project_id}[/bold]...")
         success, _ = _run_gcloud(["projects", "create", project_id], capture=False)
         if not success:
