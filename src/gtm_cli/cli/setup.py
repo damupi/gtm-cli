@@ -56,21 +56,23 @@ def _list_projects() -> list[str]:
 
 def _enable_api(project: str) -> bool:
     """Enable Tag Manager API for a project."""
-    success, _ = _run_gcloud([
-        "services", "enable", "tagmanager.googleapis.com",
-        f"--project={project}"
-    ], capture=False)
+    success, _ = _run_gcloud(
+        ["services", "enable", "tagmanager.googleapis.com", f"--project={project}"], capture=False
+    )
     return success
 
 
 def _check_api_enabled(project: str) -> bool:
     """Check if Tag Manager API is enabled."""
-    success, output = _run_gcloud([
-        "services", "list",
-        f"--project={project}",
-        "--format=value(config.name)",
-        "--filter=config.name:tagmanager.googleapis.com"
-    ])
+    success, output = _run_gcloud(
+        [
+            "services",
+            "list",
+            f"--project={project}",
+            "--format=value(config.name)",
+            "--filter=config.name:tagmanager.googleapis.com",
+        ]
+    )
     return success and "tagmanager.googleapis.com" in output
 
 
@@ -84,12 +86,14 @@ def setup() -> None:
     4. Creating OAuth credentials
     5. Logging in
     """
-    console.print(Panel.fit(
-        "[bold blue]GTM CLI Setup Wizard[/bold blue]\n\n"
-        "This wizard will help you set up authentication for GTM CLI.\n"
-        "You'll need a Google Cloud Platform account.",
-        title="Welcome",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]GTM CLI Setup Wizard[/bold blue]\n\n"
+            "This wizard will help you set up authentication for GTM CLI.\n"
+            "You'll need a Google Cloud Platform account.",
+            title="Welcome",
+        )
+    )
     console.print()
 
     # Step 1: Check gcloud
@@ -104,12 +108,16 @@ def setup() -> None:
     print_success("gcloud CLI is installed")
 
     # Check if logged into gcloud
-    success, account = _run_gcloud(["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"])
+    success, account = _run_gcloud(
+        ["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
+    )
     if not success or not account:
         print_info("You need to login to gcloud first.")
         console.print("\nRunning: [bold]gcloud auth login[/bold]")
         subprocess.run(["gcloud", "auth", "login"], check=False)
-        success, account = _run_gcloud(["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"])
+        success, account = _run_gcloud(
+            ["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
+        )
         if not account:
             print_error("gcloud login failed. Please run 'gcloud auth login' manually.")
             raise typer.Exit(1)
@@ -130,8 +138,7 @@ manage or remove later.[/dim]
 
     # Default: create new project (recommended)
     create_new = Confirm.ask(
-        "Create a new dedicated project? [bold](recommended)[/bold]",
-        default=True
+        "Create a new dedicated project? [bold](recommended)[/bold]", default=True
     )
 
     project: str | None = None
@@ -140,8 +147,7 @@ manage or remove later.[/dim]
         # User wants to use existing project
         if current_project:
             use_current = Confirm.ask(
-                f"Use current project [bold]{current_project}[/bold]?",
-                default=True
+                f"Use current project [bold]{current_project}[/bold]?", default=True
             )
             if use_current:
                 project = current_project
@@ -154,8 +160,7 @@ manage or remove later.[/dim]
                 console.print(f"  ... and {len(projects) - 10} more")
 
             choice = Prompt.ask(
-                "\nEnter project ID or number",
-                default=projects[0] if projects else ""
+                "\nEnter project ID or number", default=projects[0] if projects else ""
             )
 
             if choice.isdigit() and 1 <= int(choice) <= len(projects):
@@ -170,20 +175,18 @@ manage or remove later.[/dim]
         project_name = "GTM CLI"
 
         console.print(f"[dim]Creating project '{project_name}' with unique ID...[/dim]")
-        project_id = Prompt.ask(
-            "Project ID (must be globally unique)",
-            default=default_id
-        )
+        project_id = Prompt.ask("Project ID (must be globally unique)", default=default_id)
         console.print(f"\nCreating project [bold]{project_name}[/bold] ({project_id})...")
-        success, _ = _run_gcloud([
-            "projects", "create", project_id,
-            f"--name={project_name}"
-        ], capture=False)
+        success, _ = _run_gcloud(
+            ["projects", "create", project_id, f"--name={project_name}"], capture=False
+        )
         if not success:
             print_error("Failed to create project. The ID may already be taken.")
             console.print("\nYou can either:")
             console.print("  1. Try again with a different ID")
-            console.print("  2. Create manually: [link]https://console.cloud.google.com/projectcreate[/link]")
+            console.print(
+                "  2. Create manually: [link]https://console.cloud.google.com/projectcreate[/link]"
+            )
             project_id = Prompt.ask("\nEnter project ID (or paste one you created)")
         project = project_id
 
@@ -206,7 +209,9 @@ manage or remove later.[/dim]
             print_success("Tag Manager API enabled")
         else:
             print_error("Failed to enable API automatically.")
-            console.print(f"\nEnable it manually: [link]https://console.cloud.google.com/apis/library/tagmanager.googleapis.com?project={project}[/link]")
+            console.print(
+                f"\nEnable it manually: [link]https://console.cloud.google.com/apis/library/tagmanager.googleapis.com?project={project}[/link]"
+            )
             Prompt.ask("Press Enter after enabling the API")
 
     console.print()
@@ -311,12 +316,14 @@ This step requires manual configuration in the Google Cloud Console.
             raise typer.Exit(1) from e
 
     console.print()
-    console.print(Panel.fit(
-        "[bold green]Setup Complete![/bold green]\n\n"
-        "You can now use GTM CLI:\n\n"
-        "  [bold]gtm account list[/bold]      - List your GTM accounts\n"
-        "  [bold]gtm container list[/bold]    - List containers\n"
-        "  [bold]gtm tag list[/bold]          - List tags\n"
-        "  [bold]gtm --help[/bold]            - See all commands",
-        title="🎉 Success",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold green]Setup Complete![/bold green]\n\n"
+            "You can now use GTM CLI:\n\n"
+            "  [bold]gtm account list[/bold]      - List your GTM accounts\n"
+            "  [bold]gtm container list[/bold]    - List containers\n"
+            "  [bold]gtm tag list[/bold]          - List tags\n"
+            "  [bold]gtm --help[/bold]            - See all commands",
+            title="🎉 Success",
+        )
+    )

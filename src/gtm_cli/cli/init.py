@@ -42,9 +42,7 @@ def init(
 
     # Check if already configured
     if secrets_path.exists():
-        overwrite = typer.confirm(
-            f"Credentials already exist at {secrets_path}. Overwrite?"
-        )
+        overwrite = typer.confirm(f"Credentials already exist at {secrets_path}. Overwrite?")
         if not overwrite:
             print_info("Keeping existing credentials.")
             if login:

@@ -13,7 +13,16 @@ from gtm_cli.utils.output import output, print_error
 if TYPE_CHECKING:
     from gtm_cli.cli.main import State
 
-app = typer.Typer(help="Manage GTM versions")
+app = typer.Typer(
+    help="""Manage GTM container versions.
+
+Versions are published snapshots of your container. Each publish creates a new version.
+
+Requires: --account-id, --container-id (or set defaults in profile)
+
+Example: gtm version list -a 123456 -c GTM-XXXX
+"""
+)
 
 
 def _require_account_container(state: State) -> tuple[str, str]:

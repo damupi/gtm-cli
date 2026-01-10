@@ -8,7 +8,17 @@ from gtm_cli.cli.main import get_state
 from gtm_cli.core.client import get_client
 from gtm_cli.utils.output import output, print_error
 
-app = typer.Typer(help="Manage GTM containers")
+app = typer.Typer(
+    help="""Manage GTM containers.
+
+Containers hold all your tags, triggers, and variables. Each container has a GTM-XXXX ID.
+A container is typically one website or app.
+
+Requires: --account-id (or set default in profile)
+
+Example: gtm container list -a 123456
+"""
+)
 
 
 @app.command("list")

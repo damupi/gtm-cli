@@ -13,7 +13,17 @@ from gtm_cli.utils.output import output, print_error
 if TYPE_CHECKING:
     from gtm_cli.cli.main import State
 
-app = typer.Typer(help="Manage GTM workspaces")
+app = typer.Typer(
+    help="""Manage GTM workspaces.
+
+Workspaces are where you edit tags, triggers, and variables before publishing.
+Every container has a "Default Workspace" with ID 1.
+
+Requires: --account-id, --container-id (or set defaults in profile)
+
+Example: gtm workspace list -a 123456 -c GTM-XXXX
+"""
+)
 
 
 def _require_account_container(state: State) -> tuple[str, str]:

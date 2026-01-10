@@ -44,7 +44,7 @@ class NotLoggedInError(AuthenticationError):
 
     def __init__(self, profile_name: str = "default") -> None:
         super().__init__(
-            f"Not logged in to profile '{profile_name}'. " "Use 'gtm login' to authenticate."
+            f"Not logged in to profile '{profile_name}'. Use 'gtm login' to authenticate."
         )
         self.profile_name = profile_name
 
@@ -86,8 +86,7 @@ class PermissionDeniedError(APIError):
 
     def __init__(self, operation: str) -> None:
         super().__init__(
-            f"Permission denied for operation: {operation}. "
-            "Check your GTM account permissions.",
+            f"Permission denied for operation: {operation}. Check your GTM account permissions.",
             status_code=403,
         )
         self.operation = operation

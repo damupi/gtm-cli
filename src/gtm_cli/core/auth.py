@@ -126,13 +126,9 @@ class AuthManager:
         if not path.exists():
             raise ConfigurationError(f"Service account credentials not found at {path}")
 
-        return service_account.Credentials.from_service_account_file(
-            str(path), scopes=scopes
-        )
+        return service_account.Credentials.from_service_account_file(str(path), scopes=scopes)
 
-    def _get_oauth2_credentials(
-        self, profile: Profile, scopes: list[str]
-    ) -> OAuth2Credentials:
+    def _get_oauth2_credentials(self, profile: Profile, scopes: list[str]) -> OAuth2Credentials:
         """Load OAuth2 credentials for a profile.
 
         Args:
@@ -257,7 +253,10 @@ class AuthManager:
         # Build the gcloud command
         scopes_str = ",".join(scopes)
         cmd = [
-            "gcloud", "auth", "application-default", "login",
+            "gcloud",
+            "auth",
+            "application-default",
+            "login",
             f"--scopes={scopes_str}",
         ]
 
@@ -277,7 +276,11 @@ class AuthManager:
                 text=True,
                 check=True,
             )
-            email = email_result.stdout.strip().split("\n")[0] if email_result.stdout.strip() else "unknown"
+            email = (
+                email_result.stdout.strip().split("\n")[0]
+                if email_result.stdout.strip()
+                else "unknown"
+            )
             return email
         except Exception:
             return "unknown"
@@ -314,6 +317,7 @@ class AuthManager:
                 self.config_manager.save_profile(profile)
             else:
                 from gtm_cli.utils.errors import ProfileNotFoundError
+
                 raise ProfileNotFoundError(profile_name)
 
         profile = self.config_manager.get_profile(profile_name)

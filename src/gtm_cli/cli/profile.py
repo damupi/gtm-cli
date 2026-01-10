@@ -11,7 +11,20 @@ from gtm_cli.core.config import Profile, get_config_manager
 from gtm_cli.utils.errors import ProfileExistsError, ProfileNotFoundError
 from gtm_cli.utils.output import print_error, print_success
 
-app = typer.Typer(help="Manage GTM profiles")
+app = typer.Typer(
+    help="""Manage GTM profiles.
+
+Profiles store authentication and default settings. Each profile can have its own
+account/container/workspace defaults and OAuth credentials.
+
+Use profiles to switch between different GTM accounts or clients.
+
+Example:
+    gtm profile create work --account-id 123456
+    gtm profile use work
+    gtm profile list
+"""
+)
 console = Console()
 
 
@@ -176,7 +189,9 @@ def show_profile(
         table.add_row("Workspace ID", profile.defaults.workspace_id or "-")
 
         if login_status["logged_in"]:
-            table.add_row("Status", f"[green]Logged in as {login_status.get('email', 'unknown')}[/green]")
+            table.add_row(
+                "Status", f"[green]Logged in as {login_status.get('email', 'unknown')}[/green]"
+            )
         else:
             table.add_row("Status", "[dim]Not logged in[/dim]")
 

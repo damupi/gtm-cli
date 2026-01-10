@@ -137,10 +137,17 @@ def main(
         ),
     ] = False,
 ) -> None:
-    """GTM Orchestrator - CLI for Google Tag Manager API v2.
+    """GTM CLI - Command-line tool for Google Tag Manager API v2.
 
     Manage your Google Tag Manager containers, tags, triggers, and variables
     from the command line.
+
+    GTM Hierarchy: Account → Container → Workspace → Tags/Triggers/Variables
+
+    Quick Start:
+        gtm setup              # First-time setup wizard
+        gtm login              # Authenticate with Google
+        gtm account list       # List your GTM accounts
     """
     state.profile = profile
     state.account_id = account_id

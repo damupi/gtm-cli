@@ -13,7 +13,16 @@ from gtm_cli.utils.output import output, print_error
 if TYPE_CHECKING:
     from gtm_cli.cli.main import State
 
-app = typer.Typer(help="Manage GTM triggers")
+app = typer.Typer(
+    help="""Manage GTM triggers.
+
+Triggers define WHEN your tags fire (e.g., page view, click, form submit).
+
+Requires: --account-id, --container-id, --workspace-id (or set defaults in profile)
+
+Example: gtm trigger list -a 123456 -c GTM-XXXX -w 1
+"""
+)
 
 
 def _require_ids(state: State) -> tuple[str, str, str]:

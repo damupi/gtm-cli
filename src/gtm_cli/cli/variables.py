@@ -13,7 +13,16 @@ from gtm_cli.utils.output import output, print_error
 if TYPE_CHECKING:
     from gtm_cli.cli.main import State
 
-app = typer.Typer(help="Manage GTM variables")
+app = typer.Typer(
+    help="""Manage GTM variables.
+
+Variables store dynamic values used by tags and triggers (e.g., page URL, click text).
+
+Requires: --account-id, --container-id, --workspace-id (or set defaults in profile)
+
+Example: gtm variable list -a 123456 -c GTM-XXXX -w 1
+"""
+)
 
 
 def _require_ids(state: State) -> tuple[str, str, str]:

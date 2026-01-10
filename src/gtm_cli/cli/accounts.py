@@ -8,7 +8,16 @@ from gtm_cli.cli.main import get_state
 from gtm_cli.core.client import get_client
 from gtm_cli.utils.output import output
 
-app = typer.Typer(help="Manage GTM accounts")
+app = typer.Typer(
+    help="""Manage GTM accounts.
+
+Accounts are the top level of the GTM hierarchy. Most users have one account.
+
+GTM Hierarchy: Account → Container → Workspace → Tags/Triggers/Variables
+
+Start here to discover your account ID, then drill down to containers.
+"""
+)
 
 
 @app.command("list")

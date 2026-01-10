@@ -13,7 +13,20 @@ from gtm_cli.utils.output import output, print_error
 if TYPE_CHECKING:
     from gtm_cli.cli.main import State
 
-app = typer.Typer(help="Manage GTM tags")
+app = typer.Typer(
+    help="""Manage GTM tags.
+
+Tags are the core building blocks in GTM - they define what code runs on your site.
+
+Requires: --account-id, --container-id, --workspace-id (or set defaults in profile)
+
+Example workflow:
+    gtm account list                    # Find your account ID
+    gtm container list -a ACCOUNT_ID    # Find your container ID
+    gtm workspace list -a ACCOUNT_ID -c CONTAINER_ID  # Find workspace ID
+    gtm tag list -a ACCOUNT_ID -c CONTAINER_ID -w WORKSPACE_ID
+"""
+)
 
 
 def _require_ids(state: State) -> tuple[str, str, str]:

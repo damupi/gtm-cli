@@ -220,9 +220,7 @@ class GTMClient:
         service = self._get_service(profile_name, service_account_path)
         parent = f"accounts/{account_id}/containers/{container_id}"
         try:
-            response = (
-                service.accounts().containers().workspaces().list(parent=parent).execute()
-            )
+            response = service.accounts().containers().workspaces().list(parent=parent).execute()
             return response.get("workspace", [])
         except HttpError as e:
             self._handle_error(e, "list workspaces")
@@ -281,12 +279,7 @@ class GTMClient:
         parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
         try:
             response = (
-                service.accounts()
-                .containers()
-                .workspaces()
-                .tags()
-                .list(parent=parent)
-                .execute()
+                service.accounts().containers().workspaces().tags().list(parent=parent).execute()
             )
             return response.get("tag", [])
         except HttpError as e:
@@ -390,11 +383,7 @@ class GTMClient:
         parent = f"accounts/{account_id}/containers/{container_id}"
         try:
             response = (
-                service.accounts()
-                .containers()
-                .version_headers()
-                .list(parent=parent)
-                .execute()
+                service.accounts().containers().version_headers().list(parent=parent).execute()
             )
             return response.get("containerVersionHeader", [])
         except HttpError as e:
