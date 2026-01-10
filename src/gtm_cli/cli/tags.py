@@ -42,11 +42,23 @@ def list_tags() -> None:
         service_account_path=state.service_account,
     )
 
+    # Build folder lookup for names
+    folders = client.list_folders(
+        account_id=account_id,
+        container_id=container_id,
+        workspace_id=workspace_id,
+        profile_name=state.profile,
+        service_account_path=state.service_account,
+    )
+    folder_names = {f.get("folderId"): f.get("name") for f in folders}
+
     data = [
         {
             "tag_id": t.get("tagId", ""),
             "name": t.get("name", ""),
             "type": t.get("type", ""),
+            "paused": "Yes" if t.get("paused") else "",
+            "folder": folder_names.get(t.get("parentFolderId"), ""),
         }
         for t in tags
     ]

@@ -360,6 +360,38 @@ class GTMClient:
             self._handle_error(e, "list variables")
             return []
 
+    # Folder methods
+    def list_folders(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List all folders in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            List of folder dictionaries
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            response = (
+                service.accounts().containers().workspaces().folders().list(parent=parent).execute()
+            )
+            return response.get("folder", [])
+        except HttpError as e:
+            self._handle_error(e, "list folders")
+            return []
+
     # Version methods
     def list_versions(
         self,
