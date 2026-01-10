@@ -120,9 +120,23 @@ def workspace_status() -> None:
         # Determine what was changed (tag, trigger, variable, or folder)
         entity_type = "unknown"
         entity_name = ""
+        details = ""
+
         if "tag" in change:
             entity_type = "tag"
-            entity_name = change["tag"].get("name", "")
+            tag = change["tag"]
+            entity_name = tag.get("name", "")
+            # Show consent settings detail for tags
+            consent = tag.get("consentSettings", {})
+            consent_status = consent.get("consentStatus", "")
+            if consent_status == "needed":
+                consent_types = consent.get("consentType", {}).get("list", [])
+                types_list = [c.get("value", "") for c in consent_types]
+                details = f"consent: {', '.join(types_list)}"
+            elif consent_status == "notSet":
+                details = "consent: notSet"
+            elif consent_status == "notNeeded":
+                details = "consent: none"
         elif "trigger" in change:
             entity_type = "trigger"
             entity_name = change["trigger"].get("name", "")
@@ -133,11 +147,14 @@ def workspace_status() -> None:
             entity_type = "folder"
             entity_name = change["folder"].get("name", "")
 
-        data.append({
+        row: dict[str, str] = {
             "type": entity_type,
             "name": entity_name,
             "change": change_type,
-        })
+        }
+        if details:
+            row["details"] = details
+        data.append(row)
 
     print_info(f"Found {len(changes)} pending change(s):")
     output(data, fmt=state.output_format, title="Pending Changes")
