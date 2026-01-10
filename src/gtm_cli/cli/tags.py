@@ -1,5 +1,6 @@
 """Tag CLI commands."""
 
+from datetime import datetime
 from typing import Annotated
 
 import typer
@@ -52,6 +53,16 @@ def list_tags() -> None:
     )
     folder_names = {f.get("folderId"): f.get("name") for f in folders}
 
+    def format_date(fingerprint: str) -> str:
+        """Convert fingerprint timestamp to readable date."""
+        if not fingerprint:
+            return ""
+        try:
+            ts = int(fingerprint) / 1000  # milliseconds to seconds
+            return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+        except (ValueError, OSError):
+            return ""
+
     data = [
         {
             "tag_id": t.get("tagId", ""),
@@ -59,6 +70,7 @@ def list_tags() -> None:
             "type": t.get("type", ""),
             "paused": "paused" if t.get("paused") else "",
             "folder": folder_names.get(t.get("parentFolderId"), ""),
+            "modified": format_date(t.get("fingerprint", "")),
         }
         for t in tags
     ]
