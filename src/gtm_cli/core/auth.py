@@ -7,7 +7,6 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-import google.auth
 from google.auth.credentials import Credentials
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
@@ -71,29 +70,6 @@ def get_scopes(scope_name: str = "full") -> list[str]:
 def is_gcloud_installed() -> bool:
     """Check if gcloud CLI is installed and available."""
     return shutil.which("gcloud") is not None
-
-
-def get_adc_path() -> Path:
-    """Get the path to Application Default Credentials file."""
-    # Standard ADC location
-    if os.name == "nt":  # Windows
-        return Path(os.environ.get("APPDATA", "")) / "gcloud" / "application_default_credentials.json"
-    else:  # macOS/Linux
-        return Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
-
-
-def has_valid_adc() -> bool:
-    """Check if valid Application Default Credentials exist."""
-    adc_path = get_adc_path()
-    if not adc_path.exists():
-        return False
-
-    try:
-        # Try to load ADC and check if it has the right scopes
-        credentials, _ = google.auth.default()
-        return credentials is not None
-    except Exception:
-        return False
 
 
 class AuthManager:
@@ -214,27 +190,6 @@ class AuthManager:
         with open(token_path, "w") as f:
             json.dump(token_data, f, indent=2)
 
-    def _get_adc_credentials(self, scopes: list[str]) -> Credentials:
-        """Get Application Default Credentials.
-
-        Args:
-            scopes: OAuth2 scopes to request
-
-        Returns:
-            ADC credentials
-
-        Raises:
-            NotLoggedInError: If ADC not available
-        """
-        try:
-            credentials, _ = google.auth.default(scopes=scopes)
-            if credentials:
-                return credentials
-        except Exception:
-            pass
-
-        raise NotLoggedInError("default")
-
     def get_credentials(
         self,
         profile_name: str | None = None,
@@ -281,21 +236,8 @@ class AuthManager:
                 )
             return self._get_service_account_credentials(profile.auth.credentials_path, scopes)
 
-        # Try OAuth2 from profile first (has correct GTM scopes)
-        token_path = self.config_manager.get_token_path(profile.name)
-        if token_path.exists():
-            return self._get_oauth2_credentials(profile, scopes)
-
-        # Fall back to Application Default Credentials (gcloud)
-        # Note: ADC may not have GTM scopes, but useful for service accounts
-        if has_valid_adc():
-            try:
-                return self._get_adc_credentials(scopes)
-            except NotLoggedInError:
-                pass
-
-        # No valid credentials found
-        raise NotLoggedInError(profile.name)
+        # Use OAuth2 from profile (has correct GTM scopes)
+        return self._get_oauth2_credentials(profile, scopes)
 
     def login_with_gcloud(self, scopes: list[str]) -> str:
         """Perform login using gcloud CLI.
