@@ -165,6 +165,7 @@ def register_commands() -> None:
     from gtm_orchestrator.cli import auth as auth_cli
     from gtm_orchestrator.cli import containers as containers_cli
     from gtm_orchestrator.cli import profile as profile_cli
+    from gtm_orchestrator.cli import setup as setup_cli
     from gtm_orchestrator.cli import tags as tags_cli
     from gtm_orchestrator.cli import triggers as triggers_cli
     from gtm_orchestrator.cli import variables as variables_cli
@@ -172,6 +173,7 @@ def register_commands() -> None:
     from gtm_orchestrator.cli import workspaces as workspaces_cli
 
     # Register commands
+    app.command(name="setup")(setup_cli.setup)
     app.command(name="login")(auth_cli.login)
     app.command(name="logout")(auth_cli.logout)
     app.add_typer(profile_cli.app, name="profile")

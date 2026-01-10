@@ -2,9 +2,12 @@
 
 import json
 import os
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
+import google.auth
 from google.auth.credentials import Credentials
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
@@ -63,6 +66,34 @@ def get_scopes(scope_name: str = "full") -> list[str]:
         List of OAuth2 scope URLs
     """
     return SCOPE_SETS.get(scope_name, SCOPE_SETS["full"])
+
+
+def is_gcloud_installed() -> bool:
+    """Check if gcloud CLI is installed and available."""
+    return shutil.which("gcloud") is not None
+
+
+def get_adc_path() -> Path:
+    """Get the path to Application Default Credentials file."""
+    # Standard ADC location
+    if os.name == "nt":  # Windows
+        return Path(os.environ.get("APPDATA", "")) / "gcloud" / "application_default_credentials.json"
+    else:  # macOS/Linux
+        return Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
+
+
+def has_valid_adc() -> bool:
+    """Check if valid Application Default Credentials exist."""
+    adc_path = get_adc_path()
+    if not adc_path.exists():
+        return False
+
+    try:
+        # Try to load ADC and check if it has the right scopes
+        credentials, _ = google.auth.default()
+        return credentials is not None
+    except Exception:
+        return False
 
 
 class AuthManager:
@@ -183,12 +214,39 @@ class AuthManager:
         with open(token_path, "w") as f:
             json.dump(token_data, f, indent=2)
 
+    def _get_adc_credentials(self, scopes: list[str]) -> Credentials:
+        """Get Application Default Credentials.
+
+        Args:
+            scopes: OAuth2 scopes to request
+
+        Returns:
+            ADC credentials
+
+        Raises:
+            NotLoggedInError: If ADC not available
+        """
+        try:
+            credentials, project = google.auth.default(scopes=scopes)
+            if credentials:
+                return credentials
+        except Exception:
+            pass
+
+        raise NotLoggedInError("default")
+
     def get_credentials(
         self,
         profile_name: str | None = None,
         service_account_path: str | None = None,
     ) -> Credentials:
         """Get credentials for API access.
+
+        Priority:
+        1. Service account path (explicit override)
+        2. GOOGLE_APPLICATION_CREDENTIALS env var
+        3. Application Default Credentials (gcloud)
+        4. Profile-specific OAuth2 credentials
 
         Args:
             profile_name: Profile to use (uses default if None)
@@ -200,16 +258,23 @@ class AuthManager:
         Raises:
             AuthenticationError: If credentials cannot be obtained
         """
+        scopes = get_scopes("full")
+
         # Check for service account override
         if service_account_path:
-            return self._get_service_account_credentials(
-                service_account_path, get_scopes("full")
-            )
+            return self._get_service_account_credentials(service_account_path, scopes)
 
         # Check environment variable
         env_sa_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         if env_sa_path:
-            return self._get_service_account_credentials(env_sa_path, get_scopes("full"))
+            return self._get_service_account_credentials(env_sa_path, scopes)
+
+        # Try Application Default Credentials (gcloud)
+        if has_valid_adc():
+            try:
+                return self._get_adc_credentials(scopes)
+            except NotLoggedInError:
+                pass  # Fall through to profile-based auth
 
         # Load from profile
         profile = self.config_manager.get_profile(profile_name)
@@ -223,27 +288,72 @@ class AuthManager:
                 )
             return self._get_service_account_credentials(profile.auth.credentials_path, scopes)
 
-        # Default to OAuth2
+        # Try OAuth2 from profile
         return self._get_oauth2_credentials(profile, scopes)
+
+    def login_with_gcloud(self, scopes: list[str]) -> str:
+        """Perform login using gcloud CLI.
+
+        Args:
+            scopes: OAuth2 scopes to request
+
+        Returns:
+            Email address of logged-in user
+
+        Raises:
+            AuthenticationError: If login fails
+        """
+        if not is_gcloud_installed():
+            raise AuthenticationError("gcloud CLI is not installed")
+
+        # Build the gcloud command
+        scopes_str = ",".join(scopes)
+        cmd = [
+            "gcloud", "auth", "application-default", "login",
+            f"--scopes={scopes_str}",
+        ]
+
+        try:
+            # Run gcloud login - this opens browser automatically
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            raise AuthenticationError(f"gcloud login failed: {e}") from e
+        except FileNotFoundError as e:
+            raise AuthenticationError("gcloud CLI not found") from e
+
+        # Get the email from gcloud
+        try:
+            email_result = subprocess.run(
+                ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            email = email_result.stdout.strip().split("\n")[0] if email_result.stdout.strip() else "unknown"
+            return email
+        except Exception:
+            return "unknown"
 
     def login(
         self,
         profile_name: str | None = None,
         no_browser: bool = False,
         port: int = 8080,
+        use_gcloud: bool | None = None,
     ) -> str:
-        """Perform OAuth2 login flow.
+        """Perform login flow.
 
         Args:
             profile_name: Profile to login to (uses default if None)
             no_browser: If True, use copy/paste flow instead of browser
             port: Port for local callback server
+            use_gcloud: If True, use gcloud CLI. If None, auto-detect.
 
         Returns:
             Email address of logged-in user
 
         Raises:
-            ConfigurationError: If client secrets not found
+            ConfigurationError: If client secrets not found (and no gcloud)
             AuthenticationError: If login fails
         """
         if profile_name is None:
@@ -261,6 +371,14 @@ class AuthManager:
         profile = self.config_manager.get_profile(profile_name)
         scopes = get_scopes(profile.auth.scopes)
 
+        # Auto-detect: use gcloud if available, otherwise fall back to OAuth2
+        if use_gcloud is None:
+            use_gcloud = is_gcloud_installed()
+
+        if use_gcloud:
+            return self.login_with_gcloud(scopes)
+
+        # Fall back to manual OAuth2 flow (requires client_secrets.json)
         client_config = self._load_client_config()
 
         flow = InstalledAppFlow.from_client_config(client_config, scopes)
