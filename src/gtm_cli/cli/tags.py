@@ -14,6 +14,43 @@ from gtm_cli.cli.main import get_state
 from gtm_cli.core.client import get_client
 from gtm_cli.utils.output import output, print_error
 
+
+def _relative_time(fingerprint: str) -> str:
+    """Convert fingerprint timestamp to relative time like '3 days ago'."""
+    if not fingerprint:
+        return ""
+    try:
+        ts = int(fingerprint) / 1000
+        dt = datetime.fromtimestamp(ts)
+        now = datetime.now()
+        diff = now - dt
+
+        seconds = diff.total_seconds()
+        if seconds < 60:
+            return "just now"
+        minutes = seconds / 60
+        if minutes < 60:
+            n = int(minutes)
+            return f"{n} minute{'s' if n != 1 else ''} ago"
+        hours = minutes / 60
+        if hours < 24:
+            n = int(hours)
+            return f"{n} hour{'s' if n != 1 else ''} ago"
+        days = hours / 24
+        if days < 30:
+            n = int(days)
+            return f"{n} day{'s' if n != 1 else ''} ago"
+        months = days / 30
+        if months < 12:
+            n = int(months)
+            return f"{n} month{'s' if n != 1 else ''} ago"
+        years = days / 365
+        n = int(years)
+        return f"{n} year{'s' if n != 1 else ''} ago"
+    except (ValueError, OSError):
+        return ""
+
+
 app = typer.Typer(
     help="""Manage GTM tags.
 
@@ -53,24 +90,30 @@ def list_tags() -> None:
     )
     folder_names = {f.get("folderId"): f.get("name") for f in folders}
 
-    def format_date(fingerprint: str) -> str:
-        """Convert fingerprint timestamp to readable date."""
-        if not fingerprint:
-            return ""
-        try:
-            ts = int(fingerprint) / 1000  # milliseconds to seconds
-            return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
-        except (ValueError, OSError):
-            return ""
+    # Build trigger lookup for names
+    triggers = client.list_triggers(
+        account_id=account_id,
+        container_id=container_id,
+        workspace_id=workspace_id,
+        profile_name=state.profile,
+        service_account_path=state.service_account,
+    )
+    trigger_names = {t.get("triggerId"): t.get("name") for t in triggers}
+
+    def get_firing_triggers(tag: dict) -> str:
+        """Get comma-separated list of firing trigger names."""
+        trigger_ids = tag.get("firingTriggerId", [])
+        names = [trigger_names.get(tid, tid) for tid in trigger_ids]
+        return ", ".join(names) if names else ""
 
     data = [
         {
-            "tag_id": t.get("tagId", ""),
             "name": t.get("name", ""),
             "type": t.get("type", ""),
+            "triggers": get_firing_triggers(t),
+            "folder": folder_names.get(t.get("parentFolderId"), "-"),
+            "modified": _relative_time(t.get("fingerprint", "")),
             "paused": "paused" if t.get("paused") else "",
-            "folder": folder_names.get(t.get("parentFolderId"), ""),
-            "modified": format_date(t.get("fingerprint", "")),
         }
         for t in tags
     ]
