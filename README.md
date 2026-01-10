@@ -1,30 +1,22 @@
 # gtm-cli
 
-A modern Python CLI for Google Tag Manager API v2, designed for both interactive use and CI/CD automation.
+A modern Python CLI for Google Tag Manager API v2.
 
 ## Features
 
-- Full Google Tag Manager API v2 support
-- OAuth2 and service account authentication
-- Multi-profile support for managing multiple GTM accounts
-- Export/import functionality for backup and migration
-- Modern CLI with rich output formatting (JSON, YAML, table)
+- **Easy setup** - Interactive wizard handles GCP configuration
+- **Team-friendly** - Share OAuth credentials for quick teammate onboarding
+- **Multi-profile** - Manage multiple GTM accounts with named profiles
+- **Flexible auth** - OAuth2 for interactive use, service accounts for CI/CD
+- **Rich output** - JSON, YAML, or formatted tables
 
 ## Installation
-
-### Using pip
 
 ```bash
 pip install gtm-cli
 ```
 
-### Using uv (recommended)
-
-```bash
-uv pip install gtm-cli
-```
-
-### Verify installation
+Verify installation:
 
 ```bash
 gtm --version
@@ -32,29 +24,52 @@ gtm --version
 
 ## Quick Start
 
-### 1. Login
+### First-time Setup (Admin)
+
+Run the interactive setup wizard:
 
 ```bash
-# Interactive OAuth2 login (opens browser)
-gtm login
-
-# For headless environments
-gtm login --no-browser
+gtm setup
 ```
 
-### 2. List your accounts and containers
+This guides you through:
+1. Creating a GCP project (or using existing)
+2. Enabling the Tag Manager API
+3. Configuring OAuth consent screen
+4. Creating OAuth credentials
+5. Logging in
+
+### Teammate Onboarding
+
+If someone on your team has already set up OAuth credentials (Internal consent screen), you just need:
 
 ```bash
+gtm init https://your-internal-url/client_secrets.json
+```
+
+Or with a local file:
+
+```bash
+gtm init ~/shared/client_secrets.json
+```
+
+That's it! One command downloads the credentials and logs you in.
+
+### Basic Usage
+
+```bash
+# List your GTM accounts
 gtm account list
+
+# List containers (uses default account from profile)
 gtm container list
-```
 
-### 3. Work with tags
+# List tags in a workspace
+gtm tag list --account-id 123456 --container-id GTM-XXXX --workspace-id 1
 
-```bash
-gtm tag list
-gtm tag get TAG_ID
-gtm tag create --file tag.json
+# Different output formats
+gtm account list --format json
+gtm account list --format yaml
 ```
 
 ## Multi-Profile Support
@@ -62,8 +77,8 @@ gtm tag create --file tag.json
 Manage multiple GTM accounts with named profiles:
 
 ```bash
-# Create a profile
-gtm profile create work --account-id 123456789 --container-id GTM-XXXX
+# Create a profile with default IDs
+gtm profile create work --account-id 123456 --container-id GTM-XXXX
 
 # List profiles
 gtm profile list
@@ -75,162 +90,132 @@ gtm profile use work
 gtm --profile work tag list
 ```
 
-## GCP Setup Guide
+## Authentication
 
-### Prerequisites
+### OAuth2 (Interactive)
 
-1. A Google Cloud Platform project
-2. Tag Manager API enabled
-3. A GTM account with containers
-
-### Setup Steps
-
-#### 1. Enable the Tag Manager API
+Best for local development and interactive use:
 
 ```bash
-# Via gcloud CLI
-gcloud services enable tagmanager.googleapis.com --project YOUR_PROJECT_ID
+# Login (opens browser)
+gtm login
+
+# Logout
+gtm logout
 ```
 
-Or enable via [Google Cloud Console](https://console.cloud.google.com/apis/library/tagmanager.googleapis.com).
+### Service Account (CI/CD)
 
-#### 2. Create Credentials
-
-**For OAuth2 (Interactive use):**
-
-1. Go to [APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials)
-2. Click "Create Credentials" > "OAuth Client ID"
-3. Select "Desktop App" as application type
-4. Download the JSON file as `client_secrets.json`
-5. Place it in `~/.gtm-cli/client_secrets.json`
-
-**For Service Account (CI/CD):**
+Best for automation and CI/CD pipelines:
 
 ```bash
 # Create service account
-gcloud iam service-accounts create gtm-cli \
-  --display-name="GTM CLI"
+gcloud iam service-accounts create gtm-cli --display-name="GTM CLI"
 
 # Download key
 gcloud iam service-accounts keys create credentials.json \
-  --iam-account=gtm-cli@YOUR_PROJECT_ID.iam.gserviceaccount.com
-```
+  --iam-account=gtm-cli@YOUR_PROJECT.iam.gserviceaccount.com
 
-Then grant access in Tag Manager:
-- Go to Tag Manager > Admin > User Management
-- Add the service account email with appropriate permissions
+# Use with gtm-cli
+gtm --service-account credentials.json account list
 
-#### 3. Configure gtm-cli
-
-```bash
-# Option 1: Environment variable
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-
-# Option 2: Config file
-mkdir -p ~/.gtm-cli/profiles
-cat > ~/.gtm-cli/profiles/default.yaml << EOF
-name: default
-auth:
-  method: oauth
-defaults:
-  account_id: "123456789"
-  container_id: "GTM-XXXX"
-EOF
-```
-
-#### 4. Verify setup
-
-```bash
+# Or set environment variable
+export GOOGLE_APPLICATION_CREDENTIALS=credentials.json
 gtm account list
 ```
 
-## Development Setup
+Remember to grant the service account access in Tag Manager:
+- Go to Tag Manager > Admin > User Management
+- Add the service account email with appropriate permissions
 
-### Prerequisites
-
-- Python 3.10+
-- [uv](https://github.com/astral-sh/uv) (recommended)
-
-### Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/OWNER/gtm-cli.git
-cd gtm-cli
-
-# Install uv if not already installed
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Create virtual environment and install dependencies
-uv venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-uv pip install -e ".[dev]"
-
-# Install pre-commit hooks
-pre-commit install
-
-# Verify installation
-gtm --version
-pytest
-```
-
-### Development Commands
-
-```bash
-# Format code
-ruff format src tests
-
-# Lint code
-ruff check src tests --fix
-
-# Type check
-mypy src
-
-# Run tests
-pytest
-
-# Run all checks (before commit)
-pre-commit run --all-files
-```
-
-## CLI Reference
-
-### Global Options
-
-```bash
-gtm [OPTIONS] COMMAND
-
-Options:
-  --profile TEXT              Use a specific profile
-  --account-id TEXT           Override default account ID
-  --container-id TEXT         Override default container ID
-  --workspace-id TEXT         Override default workspace ID
-  --service-account PATH      Use service account credentials
-  --format [json|yaml|table]  Output format
-  --verbose                   Enable debug logging
-  --dry-run                   Show API calls without executing
-  --yes                       Skip confirmation prompts
-  --help                      Show help message
-```
-
-### Commands
+## Commands
 
 | Command | Description |
 |---------|-------------|
+| `gtm setup` | Interactive first-time setup wizard |
+| `gtm init <url>` | Quick setup with shared credentials |
 | `gtm login` | Authenticate with Google |
 | `gtm logout` | Remove stored credentials |
 | `gtm profile list` | List all profiles |
 | `gtm profile create` | Create a new profile |
 | `gtm profile use` | Set default profile |
+| `gtm profile show` | Show current profile details |
+| `gtm profile delete` | Delete a profile |
 | `gtm account list` | List GTM accounts |
+| `gtm account get` | Get account details |
 | `gtm container list` | List containers |
+| `gtm container get` | Get container details |
 | `gtm workspace list` | List workspaces |
+| `gtm workspace get` | Get workspace details |
 | `gtm tag list` | List tags |
+| `gtm tag get` | Get tag details |
 | `gtm trigger list` | List triggers |
+| `gtm trigger get` | Get trigger details |
 | `gtm variable list` | List variables |
-| `gtm version list` | List versions |
-| `gtm export workspace` | Export workspace to files |
-| `gtm import workspace` | Import from files |
+| `gtm variable get` | Get variable details |
+| `gtm version list` | List container versions |
+| `gtm version get` | Get version details |
+
+## Global Options
+
+```
+--profile, -p       Use a specific profile
+--account-id, -a    Override default account ID
+--container-id, -c  Override default container ID
+--workspace-id, -w  Override default workspace ID
+--service-account   Use service account credentials file
+--format, -f        Output format: json, yaml, table (default: table)
+--verbose, -v       Enable debug logging
+--dry-run           Show API calls without executing
+--yes, -y           Skip confirmation prompts
+```
+
+## Configuration
+
+Configuration is stored in `~/.gtm-cli/`:
+
+```
+~/.gtm-cli/
+├── client_secrets.json   # OAuth2 client credentials
+├── config.yaml           # Global configuration
+├── profiles/             # Named profiles
+│   └── default.yaml
+└── tokens/               # OAuth2 tokens (auto-managed)
+    └── default.json
+```
+
+## Development
+
+### Setup
+
+```bash
+git clone https://github.com/OWNER/gtm-cli.git
+cd gtm-cli
+
+# Create venv and install
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+### Commands
+
+```bash
+# Lint
+ruff check src/
+
+# Type check
+mypy src/
+
+# Format
+ruff format src/
+
+# Run all checks
+pre-commit run --all-files
+```
 
 ## License
 
