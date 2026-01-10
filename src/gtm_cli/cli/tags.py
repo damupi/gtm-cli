@@ -57,7 +57,7 @@ def list_tags() -> None:
             "tag_id": t.get("tagId", ""),
             "name": t.get("name", ""),
             "type": t.get("type", ""),
-            "paused": "Yes" if t.get("paused") else "",
+            "paused": "paused" if t.get("paused") else "",
             "folder": folder_names.get(t.get("parentFolderId"), ""),
         }
         for t in tags
