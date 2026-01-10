@@ -1,6 +1,7 @@
-"""Output formatting utilities for GTM Orchestrator."""
+"""Output formatting utilities for GTM CLI."""
 
 import json
+import sys
 from enum import Enum
 from typing import Any
 
@@ -12,12 +13,18 @@ console = Console()
 error_console = Console(stderr=True)
 
 
+def is_interactive() -> bool:
+    """Check if stdout is an interactive terminal."""
+    return sys.stdout.isatty()
+
+
 class OutputFormat(str, Enum):
     """Supported output formats."""
 
     JSON = "json"
     YAML = "yaml"
     TABLE = "table"
+    PLAIN = "plain"  # Tab-separated, no headers - good for piping
 
 
 def format_json(data: Any) -> str:
@@ -28,6 +35,24 @@ def format_json(data: Any) -> str:
 def format_yaml(data: Any) -> str:
     """Format data as YAML."""
     return yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
+def format_plain(data: list[dict[str, Any]], columns: list[str] | None = None) -> str:
+    """Format data as tab-separated values (no headers).
+
+    Good for piping to grep, awk, cut, etc.
+    """
+    if not data:
+        return ""
+
+    if columns is None:
+        columns = list(data[0].keys())
+
+    lines = []
+    for row in data:
+        values = [str(row.get(col, "")).replace("\t", " ") for col in columns]
+        lines.append("\t".join(values))
+    return "\n".join(lines)
 
 
 def format_table(
@@ -72,14 +97,29 @@ def output(
 
     Args:
         data: Data to output (dict, list, or any JSON-serializable object)
-        fmt: Output format (json, yaml, or table)
+        fmt: Output format (json, yaml, table, or plain)
         columns: For table format, which columns to display
         title: For table format, optional title
+
+    If stdout is not a TTY (piped), TABLE format auto-switches to PLAIN.
     """
+    # Auto-switch to plain when piping (unless explicit format requested)
+    if fmt == OutputFormat.TABLE and not is_interactive():
+        fmt = OutputFormat.PLAIN
+
     if fmt == OutputFormat.JSON:
         console.print(format_json(data))
     elif fmt == OutputFormat.YAML:
         console.print(format_yaml(data))
+    elif fmt == OutputFormat.PLAIN:
+        if isinstance(data, list):
+            print(format_plain(data, columns=columns))
+        elif isinstance(data, dict):
+            # Single item - output as key=value pairs
+            for key, value in data.items():
+                print(f"{key}\t{value}")
+        else:
+            print(data)
     elif fmt == OutputFormat.TABLE:
         if isinstance(data, list):
             table = format_table(data, columns=columns, title=title)
@@ -112,8 +152,9 @@ def print_warning(message: str) -> None:
 
 
 def print_info(message: str) -> None:
-    """Print an info message."""
-    console.print(f"[blue]ℹ[/blue] {message}")
+    """Print an info message. Suppressed when stdout is not a TTY (piping)."""
+    if is_interactive():
+        console.print(f"[blue]ℹ[/blue] {message}")
 
 
 def confirm(message: str, default: bool = False) -> bool:
