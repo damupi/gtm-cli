@@ -149,10 +149,17 @@ def main(
         gtm login              # Authenticate with Google
         gtm account list       # List your GTM accounts
     """
-    state.profile = profile
-    state.account_id = account_id
-    state.container_id = container_id
-    state.workspace_id = workspace_id
+    from gtm_cli.core.config import get_config_manager
+
+    # Load profile defaults
+    config_manager = get_config_manager()
+    profile_obj = config_manager.get_profile(profile)
+
+    # CLI options override profile defaults
+    state.profile = profile_obj.name
+    state.account_id = account_id or profile_obj.defaults.account_id
+    state.container_id = container_id or profile_obj.defaults.container_id
+    state.workspace_id = workspace_id or profile_obj.defaults.workspace_id
     state.service_account = str(service_account) if service_account else None
     state.output_format = output_format
     state.verbose = verbose

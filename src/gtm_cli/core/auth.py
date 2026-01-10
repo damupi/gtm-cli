@@ -131,6 +131,10 @@ class AuthManager:
     def _get_oauth2_credentials(self, profile: Profile, scopes: list[str]) -> OAuth2Credentials:
         """Load OAuth2 credentials for a profile.
 
+        OAuth tokens are shared across all profiles since they represent the same
+        Google account. If no token exists for this profile, we try the default
+        token (from any profile), since all OAuth profiles share the same identity.
+
         Args:
             profile: The profile to load credentials for
             scopes: OAuth2 scopes
@@ -139,10 +143,19 @@ class AuthManager:
             OAuth2 credentials
 
         Raises:
-            NotLoggedInError: If no token exists for profile
+            NotLoggedInError: If no token exists for any profile
             TokenExpiredError: If token is expired and cannot be refreshed
         """
         token_path = self.config_manager.get_token_path(profile.name)
+
+        # If no token for this profile, try to use any existing OAuth token
+        if not token_path.exists():
+            # Look for any existing token file
+            tokens_dir = self.config_manager.config_dir / "tokens"
+            if tokens_dir.exists():
+                for token_file in tokens_dir.glob("*.json"):
+                    token_path = token_file
+                    break
 
         if not token_path.exists():
             raise NotLoggedInError(profile.name)
