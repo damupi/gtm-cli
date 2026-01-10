@@ -83,11 +83,22 @@ def get_workspace(
 
 
 @app.command("status")
-def workspace_status() -> None:
+def workspace_status(
+    detail: Annotated[
+        bool,
+        typer.Option(
+            "--detail",
+            "-d",
+            help="Show detailed changes (e.g., consent settings for tags)",
+        ),
+    ] = False,
+) -> None:
     """Show pending changes in the workspace.
 
     Lists all modified tags, triggers, variables, and folders that haven't
     been published yet.
+
+    Use --detail to see specifics like consent settings changes.
     """
     state = get_state()
     client = get_client()
@@ -152,7 +163,7 @@ def workspace_status() -> None:
             "name": entity_name,
             "change": change_type,
         }
-        if details:
+        if detail and details:
             row["details"] = details
         data.append(row)
 
