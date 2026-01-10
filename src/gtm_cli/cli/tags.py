@@ -64,7 +64,24 @@ Example: gtm tag list
 
 
 @app.command("list")
-def list_tags() -> None:
+def list_tags(
+    sort: Annotated[
+        str,
+        typer.Option(
+            "--sort",
+            "-s",
+            help="Sort by column: name, type, folder, modified (default: modified)",
+        ),
+    ] = "modified",
+    reverse: Annotated[
+        bool,
+        typer.Option(
+            "--reverse",
+            "-r",
+            help="Reverse sort order",
+        ),
+    ] = False,
+) -> None:
     """List all tags in the workspace."""
     state = get_state()
     client = get_client()
@@ -114,9 +131,22 @@ def list_tags() -> None:
             "folder": folder_names.get(t.get("parentFolderId"), "-"),
             "modified": _relative_time(t.get("fingerprint", "")),
             "paused": "paused" if t.get("paused") else "",
+            "_fingerprint": t.get("fingerprint", "0"),  # for sorting
         }
         for t in tags
     ]
+
+    # Sort data
+    sort_key = sort.lower()
+    if sort_key == "modified":
+        # Sort by fingerprint (newer first by default)
+        data.sort(key=lambda x: x.get("_fingerprint", "0"), reverse=not reverse)
+    elif sort_key in ("name", "type", "folder", "triggers"):
+        data.sort(key=lambda x: x.get(sort_key, "").lower(), reverse=reverse)
+
+    # Remove internal sort field before output
+    for item in data:
+        item.pop("_fingerprint", None)
 
     output(data, fmt=state.output_format, title="Tags")
 
