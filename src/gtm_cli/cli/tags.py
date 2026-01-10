@@ -204,9 +204,17 @@ def audit_consent(
     state = get_state()
 
     def add_authuser(url: str) -> str:
-        """Add authuser parameter to GTM URL if specified."""
+        """Add authuser parameter to GTM URL if specified.
+
+        Inserts before the hash fragment: example.com/?authuser=1#/path
+        """
         if not url or state.authuser is None:
             return url
+        # Insert authuser before the hash fragment
+        if "#" in url:
+            base, fragment = url.split("#", 1)
+            separator = "&" if "?" in base else "?"
+            return f"{base}{separator}authuser={state.authuser}#{fragment}"
         separator = "&" if "?" in url else "?"
         return f"{url}{separator}authuser={state.authuser}"
 
