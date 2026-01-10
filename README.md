@@ -182,6 +182,8 @@ Remember to grant the service account access in Tag Manager:
 | `gtm container get` | Get container details |
 | `gtm workspace list` | List workspaces |
 | `gtm workspace get` | Get workspace details |
+| `gtm workspace status` | Show pending changes |
+| `gtm workspace publish` | Create version and publish |
 | `gtm tag list` | List tags |
 | `gtm tag get` | Get tag details |
 | `gtm tag audit-consent` | Audit tags for consent configuration issues |

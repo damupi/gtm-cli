@@ -422,6 +422,111 @@ class GTMClient:
             self._handle_error(e, "list versions")
             return []
 
+    def create_version(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        name: str | None = None,
+        notes: str | None = None,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a container version from a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            name: Optional version name
+            notes: Optional version notes
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Response containing containerVersion and optional compilerError/syncStatus
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        body: dict[str, str] = {}
+        if name:
+            body["name"] = name
+        if notes:
+            body["notes"] = notes
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .create_version(path=path, body=body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, "create version")
+            return {}
+
+    def publish_version(
+        self,
+        account_id: str,
+        container_id: str,
+        version_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Publish a container version.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            version_id: The version ID to publish
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Response containing containerVersion
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/versions/{version_id}"
+        try:
+            return service.accounts().containers().versions().publish(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"publish version {version_id}")
+            return {}
+
+    def get_workspace_status(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Get the status of a workspace (pending changes).
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Workspace status with mergeConflict and workspaceChange lists
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .getStatus(path=path)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, f"get workspace status {workspace_id}")
+            return {}
+
 
 # Global client instance
 _client: GTMClient | None = None
