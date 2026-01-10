@@ -1,0 +1,113 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gtm-orchestrator"
+version = "0.1.0"
+description = "CLI tool for Google Tag Manager API v2"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+keywords = ["gtm", "google-tag-manager", "cli", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "google-api-python-client>=2.100.0",
+    "google-auth>=2.20.0",
+    "google-auth-oauthlib>=1.0.0",
+    "google-auth-httplib2>=0.2.0",
+    "typer[all]>=0.9.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.0.0",
+    "types-PyYAML>=6.0.0",
+]
+
+[project.scripts]
+gtm = "gtm_orchestrator.cli.main:app"
+
+[project.urls]
+Homepage = "https://github.com/OWNER/gtm-orchestrator"
+Documentation = "https://github.com/OWNER/gtm-orchestrator#readme"
+Repository = "https://github.com/OWNER/gtm-orchestrator"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gtm_orchestrator"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["gtm_orchestrator"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "googleapiclient.*",
+    "google.oauth2.*",
+    "google.auth.*",
+    "google_auth_oauthlib.*",
+    "httplib2.*",
+]
+ignore_missing_imports = true
+
+# Relax strict typing for API wrapper modules that work with external untyped libs
+[[tool.mypy.overrides]]
+module = [
+    "gtm_orchestrator.core.auth",
+    "gtm_orchestrator.core.client",
+]
+warn_return_any = false
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=gtm_orchestrator --cov-report=term-missing"
