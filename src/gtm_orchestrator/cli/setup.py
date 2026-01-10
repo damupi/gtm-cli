@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import random
 import shutil
+import string
 import subprocess
 import webbrowser
 from pathlib import Path
@@ -162,18 +164,27 @@ manage or remove later.[/dim]
                 project = choice
 
     if not project:
-        # Create new project
-        default_name = "gtm-cli"
+        # Create new project with readable name and unique ID
+        suffix = "".join(random.choices(string.digits, k=6))
+        default_id = f"gtm-orchestrator-{suffix}"
+        project_name = "GTM Orchestrator"
+
+        console.print(f"[dim]Creating project '{project_name}' with unique ID...[/dim]")
         project_id = Prompt.ask(
-            "Enter new project ID",
-            default=default_name
+            "Project ID (must be globally unique)",
+            default=default_id
         )
-        console.print(f"\nCreating project [bold]{project_id}[/bold]...")
-        success, _ = _run_gcloud(["projects", "create", project_id], capture=False)
+        console.print(f"\nCreating project [bold]{project_name}[/bold] ({project_id})...")
+        success, _ = _run_gcloud([
+            "projects", "create", project_id,
+            f"--name={project_name}"
+        ], capture=False)
         if not success:
-            print_error("Failed to create project. You may need to create it manually.")
-            console.print("Visit: [link]https://console.cloud.google.com/projectcreate[/link]")
-            project_id = Prompt.ask("Enter the project ID after creating it")
+            print_error("Failed to create project. The ID may already be taken.")
+            console.print("\nYou can either:")
+            console.print("  1. Try again with a different ID")
+            console.print("  2. Create manually: [link]https://console.cloud.google.com/projectcreate[/link]")
+            project_id = Prompt.ask("\nEnter project ID (or paste one you created)")
         project = project_id
 
     # At this point, project must be set
