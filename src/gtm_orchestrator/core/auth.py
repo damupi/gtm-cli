@@ -227,7 +227,7 @@ class AuthManager:
             NotLoggedInError: If ADC not available
         """
         try:
-            credentials, project = google.auth.default(scopes=scopes)
+            credentials, _ = google.auth.default(scopes=scopes)
             if credentials:
                 return credentials
         except Exception:

@@ -176,6 +176,9 @@ manage or remove later.[/dim]
             project_id = Prompt.ask("Enter the project ID after creating it")
         project = project_id
 
+    # At this point, project must be set
+    assert project is not None, "Project ID must be set"
+
     # Set as current project
     _run_gcloud(["config", "set", "project", project])
     print_success(f"Using project: {project}")
