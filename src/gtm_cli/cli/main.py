@@ -164,6 +164,7 @@ def register_commands() -> None:
     from gtm_cli.cli import accounts as accounts_cli
     from gtm_cli.cli import auth as auth_cli
     from gtm_cli.cli import containers as containers_cli
+    from gtm_cli.cli import init as init_cli
     from gtm_cli.cli import profile as profile_cli
     from gtm_cli.cli import setup as setup_cli
     from gtm_cli.cli import tags as tags_cli
@@ -173,6 +174,7 @@ def register_commands() -> None:
     from gtm_cli.cli import workspaces as workspaces_cli
 
     # Register commands
+    app.command(name="init")(init_cli.init)
     app.command(name="setup")(setup_cli.setup)
     app.command(name="login")(auth_cli.login)
     app.command(name="logout")(auth_cli.logout)
