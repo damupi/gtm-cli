@@ -80,7 +80,7 @@ def login(
             "To set up OAuth2 authentication:\n"
             "1. Go to https://console.cloud.google.com/apis/credentials\n"
             "2. Create an OAuth 2.0 Client ID (Desktop App)\n"
-            "3. Download the JSON and save to ~/.gtm-orchestrator/client_secrets.json"
+            "3. Download the JSON and save to ~/.gtm-cli/client_secrets.json"
         )
         raise typer.Exit(1) from None
     except AuthenticationError as e:

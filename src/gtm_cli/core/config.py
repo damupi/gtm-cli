@@ -13,7 +13,7 @@ from gtm_cli.utils.errors import (
 )
 
 # Default config directory
-DEFAULT_CONFIG_DIR = Path.home() / ".gtm-orchestrator"
+DEFAULT_CONFIG_DIR = Path.home() / ".gtm-cli"
 
 
 class AuthConfig(BaseModel):
@@ -79,7 +79,7 @@ class ConfigManager:
         """Initialize the config manager.
 
         Args:
-            config_dir: Path to config directory (defaults to ~/.gtm-orchestrator)
+            config_dir: Path to config directory (defaults to ~/.gtm-cli)
         """
         self.config_dir = config_dir or DEFAULT_CONFIG_DIR
         self.profiles_dir = self.config_dir / "profiles"

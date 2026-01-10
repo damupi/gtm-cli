@@ -1,1 +1,1 @@
-"""Utility functions for gtm-orchestrator."""
+"""Utility functions for gtm-cli."""

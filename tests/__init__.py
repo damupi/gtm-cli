@@ -1,1 +1,1 @@
-"""Tests for gtm-orchestrator."""
+"""Tests for gtm-cli."""

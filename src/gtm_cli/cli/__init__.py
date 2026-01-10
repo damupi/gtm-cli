@@ -1,1 +1,1 @@
-"""CLI commands for gtm-orchestrator."""
+"""CLI commands for gtm-cli."""

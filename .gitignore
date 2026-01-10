@@ -85,7 +85,7 @@ dmypy.json
 Thumbs.db
 
 # Project specific
-.gtm-orchestrator/
+.gtm-cli/
 credentials.json
 client_secrets.json
 token.json

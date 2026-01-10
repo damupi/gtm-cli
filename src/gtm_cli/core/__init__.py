@@ -1,1 +1,1 @@
-"""Core functionality for gtm-orchestrator."""
+"""Core functionality for gtm-cli."""
