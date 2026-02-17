@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from functools import cached_property
+from typing import TYPE_CHECKING, Any
 
 import typer
 
@@ -11,6 +13,50 @@ from gtm_cli.utils.output import print_error, print_info
 if TYPE_CHECKING:
     from gtm_cli.cli.main import State
     from gtm_cli.core.client import GTMClient
+
+
+@dataclass(frozen=True)
+class WorkspaceContext:
+    """Resolved workspace context with state, client, and IDs."""
+
+    state: State
+    client: GTMClient
+    account_id: str
+    container_id: str
+    workspace_id: str
+
+    @cached_property
+    def api_kwargs(self) -> dict[str, Any]:
+        """Common kwargs for workspace-scoped client methods."""
+        return {
+            "account_id": self.account_id,
+            "container_id": self.container_id,
+            "workspace_id": self.workspace_id,
+            "profile_name": self.state.profile,
+            "service_account_path": self.state.service_account,
+        }
+
+
+def resolve_workspace_context() -> WorkspaceContext:
+    """Resolve state, client, and workspace IDs in one call.
+
+    Replaces the common 5-line boilerplate at the top of every workspace-scoped command.
+    """
+    from gtm_cli.cli.main import get_state
+    from gtm_cli.core.client import get_client
+
+    state = get_state()
+    client = get_client()
+    account_id = resolve_account_id(state, client)
+    container_id = resolve_container_id(state, client, account_id)
+    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    return WorkspaceContext(
+        state=state,
+        client=client,
+        account_id=account_id,
+        container_id=container_id,
+        workspace_id=workspace_id,
+    )
 
 
 def resolve_account_id(state: State, client: GTMClient) -> str:

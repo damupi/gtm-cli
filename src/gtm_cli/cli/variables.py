@@ -4,13 +4,7 @@ from typing import Annotated
 
 import typer
 
-from gtm_cli.cli.helpers import (
-    resolve_account_id,
-    resolve_container_id,
-    resolve_workspace_id,
-)
-from gtm_cli.cli.main import get_state
-from gtm_cli.core.client import get_client
+from gtm_cli.cli.helpers import resolve_workspace_context
 from gtm_cli.utils.output import output, print_error
 
 app = typer.Typer(
@@ -28,19 +22,9 @@ Example: gtm variable list
 @app.command("list")
 def list_variables() -> None:
     """List all variables in the workspace."""
-    state = get_state()
-    client = get_client()
-    account_id = resolve_account_id(state, client)
-    container_id = resolve_container_id(state, client, account_id)
-    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    ctx = resolve_workspace_context()
 
-    variables = client.list_variables(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    variables = ctx.client.list_variables(**ctx.api_kwargs)
 
     data = [
         {
@@ -51,7 +35,7 @@ def list_variables() -> None:
         for v in variables
     ]
 
-    output(data, fmt=state.output_format, title="Variables")
+    output(data, fmt=ctx.state.output_format, title="Variables")
 
 
 @app.command("get")
@@ -59,23 +43,13 @@ def get_variable(
     variable_id: Annotated[str, typer.Argument(help="Variable ID")],
 ) -> None:
     """Get details of a specific variable."""
-    state = get_state()
-    client = get_client()
-    account_id = resolve_account_id(state, client)
-    container_id = resolve_container_id(state, client, account_id)
-    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    ctx = resolve_workspace_context()
 
-    variables = client.list_variables(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    variables = ctx.client.list_variables(**ctx.api_kwargs)
 
     variable = next((v for v in variables if v.get("variableId") == variable_id), None)
     if not variable:
         print_error(f"Variable '{variable_id}' not found")
         raise typer.Exit(1)
 
-    output(variable, fmt=state.output_format)
+    output(variable, fmt=ctx.state.output_format)

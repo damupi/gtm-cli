@@ -7,7 +7,7 @@ import typer
 from gtm_cli.cli.helpers import (
     resolve_account_id,
     resolve_container_id,
-    resolve_workspace_id,
+    resolve_workspace_context,
 )
 from gtm_cli.cli.main import get_state
 from gtm_cli.core.client import get_client
@@ -100,19 +100,9 @@ def workspace_status(
 
     Use --detail to see specifics like consent settings changes.
     """
-    state = get_state()
-    client = get_client()
-    account_id = resolve_account_id(state, client)
-    container_id = resolve_container_id(state, client, account_id)
-    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    ctx = resolve_workspace_context()
 
-    status = client.get_workspace_status(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    status = ctx.client.get_workspace_status(**ctx.api_kwargs)
 
     changes = status.get("workspaceChange", [])
     conflicts = status.get("mergeConflict", [])
@@ -168,7 +158,7 @@ def workspace_status(
         data.append(row)
 
     print_info(f"Found {len(changes)} pending change(s):")
-    output(data, fmt=state.output_format, title="Pending Changes")
+    output(data, fmt=ctx.state.output_format, title="Pending Changes")
 
 
 def _generate_change_summary(changes: list[dict[str, Any]]) -> str:
@@ -235,20 +225,10 @@ def workspace_publish(
     Example: gtm workspace publish
     Example: gtm workspace publish --name "v1.2" --notes "Fixed consent settings"
     """
-    state = get_state()
-    client = get_client()
-    account_id = resolve_account_id(state, client)
-    container_id = resolve_container_id(state, client, account_id)
-    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    ctx = resolve_workspace_context()
 
     # First check for pending changes
-    status = client.get_workspace_status(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    status = ctx.client.get_workspace_status(**ctx.api_kwargs)
 
     changes = status.get("workspaceChange", [])
     conflicts = status.get("mergeConflict", [])
@@ -274,7 +254,7 @@ def workspace_publish(
                 entity_name = change[etype].get("name", "")
                 break
         change_data.append({"type": entity_type, "name": entity_name, "change": change_type})
-    output(change_data, fmt=state.output_format, title="Changes to Publish")
+    output(change_data, fmt=ctx.state.output_format, title="Changes to Publish")
 
     # Generate suggested notes from changes
     suggested_notes = _generate_change_summary(changes)
@@ -283,7 +263,7 @@ def workspace_publish(
     version_name = name
     version_notes = notes
 
-    if not state.yes:
+    if not ctx.state.yes:
         if not version_name:
             version_name = typer.prompt("Version name (optional)", default="", show_default=False)
             if not version_name:
@@ -306,20 +286,12 @@ def workspace_publish(
     print_info(f"Creating version from {len(changes)} change(s)...")
 
     # Create version
-    result = client.create_version(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        name=version_name,
-        notes=version_notes,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    result = ctx.client.create_version(name=version_name, notes=version_notes, **ctx.api_kwargs)
 
     # Check for compiler errors
     if "compilerError" in result:
         print_error("Version creation failed with compiler errors:")
-        output(result["compilerError"], fmt=state.output_format)
+        output(result["compilerError"], fmt=ctx.state.output_format)
         raise typer.Exit(1)
 
     version = result.get("containerVersion", {})
@@ -331,13 +303,13 @@ def workspace_publish(
 
     print_info(f"Created version {version_id}, publishing...")
 
-    # Publish the version
-    publish_result = client.publish_version(
-        account_id=account_id,
-        container_id=container_id,
+    # Publish the version (not workspace-scoped: uses version_id, not workspace_id)
+    publish_result = ctx.client.publish_version(
+        account_id=ctx.account_id,
+        container_id=ctx.container_id,
         version_id=version_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
+        profile_name=ctx.state.profile,
+        service_account_path=ctx.state.service_account,
     )
 
     published_version = publish_result.get("containerVersion", {})

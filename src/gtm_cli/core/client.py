@@ -286,6 +286,129 @@ class GTMClient:
             self._handle_error(e, "list tags")
             return []
 
+    def create_tag(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        tag_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a tag in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            tag_body: Tag definition (name, type, parameter, firingTriggerId, etc.)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Created tag dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .tags()
+                .create(parent=parent, body=tag_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, "create tag")
+            return {}
+
+    def get_tag(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        tag_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Get a specific tag in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            tag_id: The tag ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Tag dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/tags/{tag_id}"
+        try:
+            return service.accounts().containers().workspaces().tags().get(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"get tag {tag_id}")
+            return {}
+
+    def update_tag(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        tag_id: str,
+        tag_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a tag in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            tag_id: The tag ID to update
+            tag_body: Full tag body (PUT semantics)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Updated tag dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/tags/{tag_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .tags()
+                .update(path=path, body=tag_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, f"update tag {tag_id}")
+            return {}
+
+    def delete_tag(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        tag_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> None:
+        """Delete a tag from a workspace."""
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/tags/{tag_id}"
+        try:
+            service.accounts().containers().workspaces().tags().delete(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"delete tag {tag_id}")
+
     # Trigger methods
     def list_triggers(
         self,
@@ -322,6 +445,99 @@ class GTMClient:
         except HttpError as e:
             self._handle_error(e, "list triggers")
             return []
+
+    def create_trigger(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        trigger_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a trigger in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            trigger_body: Trigger definition (name, type, parameter, etc.)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Created trigger dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .triggers()
+                .create(parent=parent, body=trigger_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, "create trigger")
+            return {}
+
+    def get_trigger(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        trigger_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Get a specific trigger in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            trigger_id: The trigger ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Trigger dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/triggers/{trigger_id}"
+        try:
+            return service.accounts().containers().workspaces().triggers().get(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"get trigger {trigger_id}")
+            return {}
+
+    def delete_trigger(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        trigger_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> None:
+        """Delete a trigger from a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            trigger_id: The trigger ID to delete
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/triggers/{trigger_id}"
+        try:
+            service.accounts().containers().workspaces().triggers().delete(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"delete trigger {trigger_id}")
 
     # Variable methods
     def list_variables(
@@ -516,13 +732,7 @@ class GTMClient:
         service = self._get_service(profile_name, service_account_path)
         path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
         try:
-            return (
-                service.accounts()
-                .containers()
-                .workspaces()
-                .getStatus(path=path)
-                .execute()
-            )
+            return service.accounts().containers().workspaces().getStatus(path=path).execute()
         except HttpError as e:
             self._handle_error(e, f"get workspace status {workspace_id}")
             return {}

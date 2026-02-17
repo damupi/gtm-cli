@@ -2,18 +2,20 @@
 
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Any
 
 import typer
 
-from gtm_cli.cli.helpers import (
-    resolve_account_id,
-    resolve_container_id,
-    resolve_workspace_id,
+from gtm_cli.cli.helpers import resolve_workspace_context
+from gtm_cli.utils.output import (
+    confirm,
+    output,
+    print_error,
+    print_info,
+    print_success,
+    print_warning,
 )
-from gtm_cli.cli.main import get_state
-from gtm_cli.core.client import get_client
-from gtm_cli.utils.output import output, print_error, print_info, print_success, print_warning
 
 
 def _add_authuser(url: str, authuser: int | None) -> str:
@@ -212,38 +214,16 @@ def list_tags(
     ] = False,
 ) -> None:
     """List all tags in the workspace."""
-    state = get_state()
-    client = get_client()
-    account_id = resolve_account_id(state, client)
-    container_id = resolve_container_id(state, client, account_id)
-    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    ctx = resolve_workspace_context()
 
-    tags = client.list_tags(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
 
     # Build folder lookup for names
-    folders = client.list_folders(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    folders = ctx.client.list_folders(**ctx.api_kwargs)
     folder_names = {f.get("folderId"): f.get("name") for f in folders}
 
     # Build trigger lookup for names
-    triggers = client.list_triggers(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    triggers = ctx.client.list_triggers(**ctx.api_kwargs)
     trigger_names = {t.get("triggerId", ""): t.get("name", "") for t in triggers}
 
     data = [
@@ -271,7 +251,7 @@ def list_tags(
     for item in data:
         item.pop("_fingerprint", None)
 
-    output(data, fmt=state.output_format, title="Tags")
+    output(data, fmt=ctx.state.output_format, title="Tags")
 
 
 @app.command("search")
@@ -306,19 +286,9 @@ def search_tags(
         gtm tag search pixel --type html
         gtm tag search facebook --type html
     """
-    state = get_state()
-    client = get_client()
-    account_id = resolve_account_id(state, client)
-    container_id = resolve_container_id(state, client, account_id)
-    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    ctx = resolve_workspace_context()
 
-    tags = client.list_tags(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
 
     query_lower = query.lower()
     type_lower = tag_type.lower() if tag_type else None
@@ -336,22 +306,10 @@ def search_tags(
         raise typer.Exit(0)
 
     # Build lookups
-    folders = client.list_folders(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    folders = ctx.client.list_folders(**ctx.api_kwargs)
     folder_names = {f.get("folderId"): f.get("name") for f in folders}
 
-    triggers = client.list_triggers(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    triggers = ctx.client.list_triggers(**ctx.api_kwargs)
     trigger_names = {t.get("triggerId", ""): t.get("name", "") for t in triggers}
 
     data = [
@@ -367,7 +325,7 @@ def search_tags(
     ]
 
     print_success(f"Found {len(matched)} tag(s) matching '{query}':")
-    output(data, fmt=state.output_format, title=f"Search: {query}")
+    output(data, fmt=ctx.state.output_format, title=f"Search: {query}")
 
 
 @app.command("get")
@@ -375,28 +333,18 @@ def get_tag(
     tag_id: Annotated[str, typer.Argument(help="Tag ID")],
 ) -> None:
     """Get details of a specific tag."""
-    state = get_state()
-    client = get_client()
-    account_id = resolve_account_id(state, client)
-    container_id = resolve_container_id(state, client, account_id)
-    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    ctx = resolve_workspace_context()
 
     # Note: Full implementation would call client.get_tag()
     # For now, list and filter
-    tags = client.list_tags(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
 
     tag = next((t for t in tags if t.get("tagId") == tag_id), None)
     if not tag:
         print_error(f"Tag '{tag_id}' not found")
         raise typer.Exit(1)
 
-    output(tag, fmt=state.output_format)
+    output(tag, fmt=ctx.state.output_format)
 
 
 @app.command("audit-consent")
@@ -420,19 +368,9 @@ def audit_consent(
 
     Tip: Use --authuser N global option to append authuser parameter to URLs.
     """
-    state = get_state()
-    client = get_client()
-    account_id = resolve_account_id(state, client)
-    container_id = resolve_container_id(state, client, account_id)
-    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    ctx = resolve_workspace_context()
 
-    tags = client.list_tags(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
 
     # Categorize tags by consent status
     needed_tags: list[dict[str, Any]] = []
@@ -451,7 +389,7 @@ def audit_consent(
                     "name": tag.get("name", ""),
                     "type": tag.get("type", ""),
                     "consent_required": ", ".join(types_list),
-                    "url": _add_authuser(tag.get("tagManagerUrl", ""), state.authuser),
+                    "url": _add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser),
                 }
             )
         elif status == "notSet":
@@ -459,7 +397,7 @@ def audit_consent(
                 {
                     "name": tag.get("name", ""),
                     "type": tag.get("type", ""),
-                    "url": _add_authuser(tag.get("tagManagerUrl", ""), state.authuser),
+                    "url": _add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser),
                 }
             )
         else:
@@ -470,7 +408,7 @@ def audit_consent(
         print_warning(f"Found {len(needed_tags)} tag(s) with EXPLICIT additional consent required:")
         output(
             needed_tags,
-            fmt=state.output_format,
+            fmt=ctx.state.output_format,
             columns=["name", "type", "consent_required", "url"],
             title="Tags with Additional Consent Required",
         )
@@ -481,7 +419,7 @@ def audit_consent(
         print_warning(f"\nFound {len(not_set_tags)} tag(s) with consent 'notSet':")
         output(
             not_set_tags,
-            fmt=state.output_format,
+            fmt=ctx.state.output_format,
             columns=["name", "type", "url"],
             title="Tags with Consent Not Set",
         )
@@ -521,27 +459,11 @@ def audit_pixels(
 
     Tip: Use --authuser N global option to append authuser parameter to URLs.
     """
-    state = get_state()
-    client = get_client()
-    account_id = resolve_account_id(state, client)
-    container_id = resolve_container_id(state, client, account_id)
-    workspace_id = resolve_workspace_id(state, client, account_id, container_id)
+    ctx = resolve_workspace_context()
 
-    tags = client.list_tags(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
 
-    triggers = client.list_triggers(
-        account_id=account_id,
-        container_id=container_id,
-        workspace_id=workspace_id,
-        profile_name=state.profile,
-        service_account_path=state.service_account,
-    )
+    triggers = ctx.client.list_triggers(**ctx.api_kwargs)
     trigger_names = {t.get("triggerId", ""): t.get("name", "") for t in triggers}
 
     # Collect findings
@@ -559,7 +481,7 @@ def audit_pixels(
     for tag in html_tags:
         name = tag.get("name", "")
         html = _get_tag_html(tag)
-        tag_url = _add_authuser(tag.get("tagManagerUrl", ""), state.authuser)
+        tag_url = _add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser)
 
         if not html:
             continue
@@ -620,6 +542,7 @@ def audit_pixels(
         tag_details.append(detail)
 
     # --- Output findings ---
+    fmt = ctx.state.output_format
     has_issues = False
 
     # 1. Sync script loading
@@ -628,7 +551,7 @@ def audit_pixels(
         print_warning(f"\n{len(sync_scripts)} script(s) loaded WITHOUT async attribute:")
         output(
             sync_scripts,
-            fmt=state.output_format,
+            fmt=fmt,
             columns=["tag", "script_src", "method", "async", "defer", "url"],
             title="Scripts Missing async",
         )
@@ -649,7 +572,7 @@ def audit_pixels(
         print_warning(f"\n{len(duplicates)} pixel(s) loaded in MULTIPLE tags:")
         output(
             dup_data,
-            fmt=state.output_format,
+            fmt=fmt,
             columns=["pixel", "count", "tags"],
             title="Duplicate Pixel Installations",
         )
@@ -663,7 +586,7 @@ def audit_pixels(
         print_warning(f"\n{len(all_page_pixels)} pixel tag(s) firing on ALL PAGES:")
         output(
             all_page_pixels,
-            fmt=state.output_format,
+            fmt=fmt,
             columns=["tag", "provider", "pixel_id", "triggers", "url"],
             title="Pixels Firing on All Pages",
         )
@@ -682,7 +605,7 @@ def audit_pixels(
             columns.append("html")
         output(
             tag_details,
-            fmt=state.output_format,
+            fmt=fmt,
             columns=columns,
             title="Custom HTML Tag Details",
         )
@@ -697,3 +620,162 @@ def audit_pixels(
         print("Detected pixels:")
         for key, tag_list in pixel_map.items():
             print(f"  {key} -> {', '.join(tag_list)}")
+
+
+@app.command("create")
+def create_tag(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Tag name"),
+    ],
+    tag_type: Annotated[
+        str,
+        typer.Option("--type", "-t", help="Tag type (default: html)"),
+    ] = "html",
+    html: Annotated[
+        str | None,
+        typer.Option("--html", help="Inline HTML content for Custom HTML tags"),
+    ] = None,
+    html_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--html-file",
+            help="Path to file containing HTML content",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
+    trigger_id: Annotated[
+        list[str] | None,
+        typer.Option("--trigger-id", help="Firing trigger ID (repeatable)"),
+    ] = None,
+    folder_id: Annotated[
+        str | None,
+        typer.Option("--folder-id", help="Parent folder ID"),
+    ] = None,
+    once_per_event: Annotated[
+        bool,
+        typer.Option("--once-per-event/--unlimited", help="Fire once per event (default: once)"),
+    ] = True,
+) -> None:
+    """Create a new tag in the workspace.
+
+    For Custom HTML tags, provide content via --html or --html-file.
+
+    Examples:
+        gtm tag create --name "My Tag" --html '<script>console.log("hi")</script>'
+        gtm tag create --name "My Tag" --html-file pixel.html --trigger-id 295 --folder-id 409
+    """
+    ctx = resolve_workspace_context()
+
+    # Resolve HTML content
+    if html and html_file:
+        print_error("Cannot specify both --html and --html-file")
+        raise typer.Exit(1)
+
+    html_content = None
+    if html_file:
+        html_content = html_file.read_text()
+    elif html:
+        html_content = html
+
+    if tag_type == "html" and not html_content:
+        print_error("Custom HTML tags require --html or --html-file")
+        raise typer.Exit(1)
+
+    # Build tag body
+    tag_body: dict[str, Any] = {
+        "name": name,
+        "type": tag_type,
+    }
+
+    if html_content:
+        tag_body["parameter"] = [
+            {"type": "template", "key": "html", "value": html_content},
+            {"type": "boolean", "key": "supportDocumentWrite", "value": "false"},
+        ]
+
+    if trigger_id:
+        tag_body["firingTriggerId"] = trigger_id
+
+    if folder_id:
+        tag_body["parentFolderId"] = folder_id
+
+    tag_body["tagFiringOption"] = "oncePerEvent" if once_per_event else "unlimited"
+
+    result = ctx.client.create_tag(tag_body=tag_body, **ctx.api_kwargs)
+
+    created_id = result.get("tagId", "")
+    print_success(f"Created tag '{name}' (ID: {created_id})")
+    output(result, fmt=ctx.state.output_format)
+
+
+def _set_tag_paused(tag_ids: list[str], paused: bool) -> None:
+    """Set paused state on one or more tags."""
+    ctx = resolve_workspace_context()
+
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
+
+    action = "Pausing" if paused else "Unpausing"
+    failures = 0
+    for tid in tag_ids:
+        tag = next((t for t in tags if t.get("tagId") == tid), None)
+        if not tag:
+            print_error(f"Tag '{tid}' not found")
+            failures += 1
+            continue
+
+        tag["paused"] = paused
+        result = ctx.client.update_tag(tag_id=tid, tag_body=tag, **ctx.api_kwargs)
+        print_success(f"{action} tag '{result.get('name', tid)}' (ID: {tid})")
+
+    if failures:
+        raise typer.Exit(1)
+
+
+@app.command("pause")
+def pause_tag(
+    tag_ids: Annotated[list[str], typer.Argument(help="Tag ID(s) to pause")],
+) -> None:
+    """Pause one or more tags.
+
+    Examples:
+        gtm tag pause 304
+        gtm tag pause 298 302 303
+    """
+    _set_tag_paused(tag_ids, paused=True)
+
+
+@app.command("unpause")
+def unpause_tag(
+    tag_ids: Annotated[list[str], typer.Argument(help="Tag ID(s) to unpause")],
+) -> None:
+    """Unpause one or more tags.
+
+    Examples:
+        gtm tag unpause 304
+        gtm tag unpause 298 302 303
+    """
+    _set_tag_paused(tag_ids, paused=False)
+
+
+@app.command("delete")
+def delete_tag(
+    tag_id: Annotated[str, typer.Argument(help="Tag ID to delete")],
+) -> None:
+    """Delete a tag from the workspace."""
+    ctx = resolve_workspace_context()
+
+    # Show tag name before deleting
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
+    tag = next((t for t in tags if t.get("tagId") == tag_id), None)
+    if not tag:
+        print_error(f"Tag '{tag_id}' not found")
+        raise typer.Exit(1)
+
+    tag_name = tag.get("name", tag_id)
+    if not ctx.state.yes and not confirm(f"Delete tag '{tag_name}' (ID: {tag_id})?"):
+        raise typer.Exit(0)
+
+    ctx.client.delete_tag(tag_id=tag_id, **ctx.api_kwargs)
+    print_success(f"Deleted tag '{tag_name}' (ID: {tag_id})")
