@@ -1,4 +1,4 @@
-"""Tests for tag CLI commands (create, delete, pause, unpause)."""
+"""Tests for tag CLI commands (create, update, delete, pause, unpause)."""
 
 from unittest.mock import MagicMock, patch
 
@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from gtm_cli.cli.helpers import WorkspaceContext
 from gtm_cli.cli.main import State, app
+from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import OutputFormat
 
 runner = CliRunner()
@@ -147,6 +148,152 @@ class TestCreateTag:
 
 
 # ---------------------------------------------------------------------------
+# update_tag
+# ---------------------------------------------------------------------------
+
+
+_EXISTING_TAG = {
+    "tagId": "421",
+    "name": "Old Name",
+    "type": "html",
+    "parameter": [
+        {"type": "template", "key": "html", "value": "<script>old</script>"},
+        {"type": "boolean", "key": "supportDocumentWrite", "value": "false"},
+    ],
+    "firingTriggerId": ["295"],
+    "parentFolderId": "409",
+}
+
+
+class TestUpdateTag:
+    def test_update_name(self, mock_ctx):
+        """--name updates the tag name."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = {**_EXISTING_TAG, "name": "New Name"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--name", "New Name"])
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        assert body["name"] == "New Name"
+
+    def test_update_html_inline(self, mock_ctx):
+        """--html replaces the html parameter value."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = _EXISTING_TAG
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app, ["tag", "update", "421", "--html", "<script>new</script>"]
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        html_param = next(p for p in body["parameter"] if p["key"] == "html")
+        assert html_param["value"] == "<script>new</script>"
+
+    def test_update_html_file(self, mock_ctx, tmp_path):
+        """--html-file reads new content from a file."""
+        html_file = tmp_path / "new.html"
+        html_file.write_text("<script>fromFile</script>")
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = _EXISTING_TAG
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app, ["tag", "update", "421", "--html-file", str(html_file)]
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        html_param = next(p for p in body["parameter"] if p["key"] == "html")
+        assert html_param["value"] == "<script>fromFile</script>"
+
+    def test_update_html_and_html_file_mutual_exclusion(self, mock_ctx, tmp_path):
+        """Both --html and --html-file exits with code 1."""
+        html_file = tmp_path / "f.html"
+        html_file.write_text("<script>x</script>")
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["tag", "update", "421", "--html", "<script>y</script>", "--html-file", str(html_file)],
+            )
+
+        assert result.exit_code == 1
+        assert "Cannot specify both" in result.output
+
+    def test_update_trigger_ids_replaces(self, mock_ctx):
+        """--trigger-id replaces all existing firing triggers."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = _EXISTING_TAG
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["tag", "update", "421", "--trigger-id", "300", "--trigger-id", "301"],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        assert body["firingTriggerId"] == ["300", "301"]
+
+    def test_update_folder_id(self, mock_ctx):
+        """--folder-id moves the tag to a new folder."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = _EXISTING_TAG
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--folder-id", "500"])
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        assert body["parentFolderId"] == "500"
+
+    def test_update_no_changes_exits_error(self, mock_ctx):
+        """No options specified exits with code 1."""
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421"])
+
+        assert result.exit_code == 1
+        assert "No changes specified" in result.output
+
+    def test_update_tag_not_found(self, mock_ctx):
+        """Non-existent tag exits with code 1."""
+        mock_ctx.client.get_tag.side_effect = ResourceNotFoundError("Tag", "get tag 999")
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "999", "--name", "X"])
+
+        assert result.exit_code == 1
+        assert "not found" in result.output.lower()
+
+    def test_update_html_inserts_param_when_missing(self, mock_ctx):
+        """If tag has no html parameter, one is appended."""
+        tag_no_html = {
+            "tagId": "421",
+            "name": "No HTML",
+            "type": "html",
+            "parameter": [
+                {"type": "boolean", "key": "supportDocumentWrite", "value": "false"},
+            ],
+        }
+        mock_ctx.client.get_tag.return_value = tag_no_html
+        mock_ctx.client.update_tag.return_value = tag_no_html
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app, ["tag", "update", "421", "--html", "<script>new</script>"]
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        html_param = next(p for p in body["parameter"] if p["key"] == "html")
+        assert html_param["value"] == "<script>new</script>"
+
+
+# ---------------------------------------------------------------------------
 # delete_tag
 # ---------------------------------------------------------------------------
 
@@ -154,9 +301,7 @@ class TestCreateTag:
 class TestDeleteTag:
     def test_delete_tag_success(self, mock_ctx):
         """Tag found and --yes skips prompt; client.delete_tag is called."""
-        mock_ctx.client.list_tags.return_value = [
-            {"tagId": "100", "name": "Doomed Tag"},
-        ]
+        mock_ctx.client.get_tag.return_value = {"tagId": "100", "name": "Doomed Tag"}
 
         with patch(_PATCH_TARGET, return_value=mock_ctx):
             result = runner.invoke(app, ["tag", "delete", "100"])
@@ -168,9 +313,7 @@ class TestDeleteTag:
 
     def test_delete_tag_not_found(self, mock_ctx):
         """Deleting a non-existent tag exits with code 1."""
-        mock_ctx.client.list_tags.return_value = [
-            {"tagId": "100", "name": "Other Tag"},
-        ]
+        mock_ctx.client.get_tag.side_effect = ResourceNotFoundError("Tag", "get tag 999")
 
         with patch(_PATCH_TARGET, return_value=mock_ctx):
             result = runner.invoke(app, ["tag", "delete", "999"])
@@ -188,7 +331,7 @@ class TestPauseUnpause:
     def test_pause_tag(self, mock_ctx):
         """Pause sets paused=True and calls update_tag."""
         tag = {"tagId": "200", "name": "Pausable", "paused": False}
-        mock_ctx.client.list_tags.return_value = [tag]
+        mock_ctx.client.get_tag.return_value = tag
         mock_ctx.client.update_tag.return_value = {**tag, "paused": True}
 
         with patch(_PATCH_TARGET, return_value=mock_ctx):
@@ -203,7 +346,7 @@ class TestPauseUnpause:
     def test_unpause_tag(self, mock_ctx):
         """Unpause sets paused=False and calls update_tag."""
         tag = {"tagId": "201", "name": "Paused Tag", "paused": True}
-        mock_ctx.client.list_tags.return_value = [tag]
+        mock_ctx.client.get_tag.return_value = tag
         mock_ctx.client.update_tag.return_value = {**tag, "paused": False}
 
         with patch(_PATCH_TARGET, return_value=mock_ctx):
@@ -215,9 +358,7 @@ class TestPauseUnpause:
 
     def test_pause_tag_not_found_exits_nonzero(self, mock_ctx):
         """Pausing a non-existent tag ID exits with code 1."""
-        mock_ctx.client.list_tags.return_value = [
-            {"tagId": "200", "name": "Other"},
-        ]
+        mock_ctx.client.get_tag.side_effect = ResourceNotFoundError("Tag", "get tag 999")
 
         with patch(_PATCH_TARGET, return_value=mock_ctx):
             result = runner.invoke(app, ["tag", "pause", "999"])

@@ -7,7 +7,8 @@ from typing import Annotated, Any
 
 import typer
 
-from gtm_cli.cli.helpers import resolve_workspace_context
+from gtm_cli.cli.helpers import WorkspaceContext, resolve_workspace_context
+from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import (
     confirm,
     output,
@@ -180,6 +181,39 @@ def _is_all_pages_trigger(trigger_name: str) -> bool:
     )
 
 
+def _resolve_html_content(
+    html: str | None,
+    html_file: Path | None,
+) -> str | None:
+    """Resolve HTML content from inline string or file path.
+
+    Raises typer.Exit(1) if both are specified.
+    Returns None if neither is specified.
+    """
+    if html is not None and html_file is not None:
+        print_error("Cannot specify both --html and --html-file")
+        raise typer.Exit(1)
+    if html_file:
+        return html_file.read_text()
+    return html
+
+
+def _build_tag_lookups(
+    ctx: WorkspaceContext,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Build folder and trigger name lookup dicts for display."""
+    folders = ctx.client.list_folders(**ctx.api_kwargs)
+    folder_names: dict[str, str] = {
+        f.get("folderId", ""): f.get("name", "") for f in folders
+    }
+
+    triggers = ctx.client.list_triggers(**ctx.api_kwargs)
+    trigger_names: dict[str, str] = {
+        t.get("triggerId", ""): t.get("name", "") for t in triggers
+    }
+    return folder_names, trigger_names
+
+
 # --- CLI commands ---
 
 app = typer.Typer(
@@ -217,14 +251,7 @@ def list_tags(
     ctx = resolve_workspace_context()
 
     tags = ctx.client.list_tags(**ctx.api_kwargs)
-
-    # Build folder lookup for names
-    folders = ctx.client.list_folders(**ctx.api_kwargs)
-    folder_names = {f.get("folderId"): f.get("name") for f in folders}
-
-    # Build trigger lookup for names
-    triggers = ctx.client.list_triggers(**ctx.api_kwargs)
-    trigger_names = {t.get("triggerId", ""): t.get("name", "") for t in triggers}
+    folder_names, trigger_names = _build_tag_lookups(ctx)
 
     data = [
         {
@@ -305,12 +332,7 @@ def search_tags(
         print_warning(f"No tags matching '{query}'" + (f" (type={tag_type})" if tag_type else ""))
         raise typer.Exit(0)
 
-    # Build lookups
-    folders = ctx.client.list_folders(**ctx.api_kwargs)
-    folder_names = {f.get("folderId"): f.get("name") for f in folders}
-
-    triggers = ctx.client.list_triggers(**ctx.api_kwargs)
-    trigger_names = {t.get("triggerId", ""): t.get("name", "") for t in triggers}
+    folder_names, trigger_names = _build_tag_lookups(ctx)
 
     data = [
         {
@@ -335,14 +357,11 @@ def get_tag(
     """Get details of a specific tag."""
     ctx = resolve_workspace_context()
 
-    # Note: Full implementation would call client.get_tag()
-    # For now, list and filter
-    tags = ctx.client.list_tags(**ctx.api_kwargs)
-
-    tag = next((t for t in tags if t.get("tagId") == tag_id), None)
-    if not tag:
+    try:
+        tag = ctx.client.get_tag(tag_id=tag_id, **ctx.api_kwargs)
+    except ResourceNotFoundError:
         print_error(f"Tag '{tag_id}' not found")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     output(tag, fmt=ctx.state.output_format)
 
@@ -668,16 +687,7 @@ def create_tag(
     """
     ctx = resolve_workspace_context()
 
-    # Resolve HTML content
-    if html and html_file:
-        print_error("Cannot specify both --html and --html-file")
-        raise typer.Exit(1)
-
-    html_content = None
-    if html_file:
-        html_content = html_file.read_text()
-    elif html:
-        html_content = html
+    html_content = _resolve_html_content(html, html_file)
 
     if tag_type == "html" and not html_content:
         print_error("Custom HTML tags require --html or --html-file")
@@ -710,17 +720,98 @@ def create_tag(
     output(result, fmt=ctx.state.output_format)
 
 
+@app.command("update")
+def update_tag(
+    tag_id: Annotated[str, typer.Argument(help="Tag ID to update")],
+    name: Annotated[
+        str | None,
+        typer.Option("--name", "-n", help="New tag name"),
+    ] = None,
+    html: Annotated[
+        str | None,
+        typer.Option("--html", help="New inline HTML content"),
+    ] = None,
+    html_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--html-file",
+            help="Path to file containing new HTML content",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
+    trigger_id: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--trigger-id",
+            help="Replace ALL firing trigger IDs (repeatable; clears existing triggers)",
+        ),
+    ] = None,
+    folder_id: Annotated[
+        str | None,
+        typer.Option("--folder-id", help="Move to folder ID"),
+    ] = None,
+) -> None:
+    """Update an existing tag in the workspace.
+
+    Fetches the current tag, applies changes, and saves. Only specified
+    fields are changed; everything else is preserved.
+
+    Examples:
+        gtm tag update 421 --html-file loader.html
+        gtm tag update 420 --name "TikTok Stub v2"
+        gtm tag update 421 --trigger-id 295 --trigger-id 296
+    """
+    ctx = resolve_workspace_context()
+
+    if all(v is None for v in (name, html, html_file, trigger_id, folder_id)):
+        print_error("No changes specified. Use --name, --html, --html-file, --trigger-id, or --folder-id.")
+        raise typer.Exit(1)
+
+    html_content = _resolve_html_content(html, html_file)
+
+    # Fetch current tag
+    try:
+        tag = ctx.client.get_tag(tag_id=tag_id, **ctx.api_kwargs)
+    except ResourceNotFoundError:
+        print_error(f"Tag '{tag_id}' not found")
+        raise typer.Exit(1) from None
+
+    # Apply changes
+    if name is not None:
+        tag["name"] = name
+
+    if html_content is not None:
+        for p in tag.get("parameter", []):
+            if p.get("key") == "html":
+                p["value"] = html_content
+                break
+        else:
+            tag.setdefault("parameter", []).append(
+                {"type": "template", "key": "html", "value": html_content}
+            )
+
+    if trigger_id is not None:
+        tag["firingTriggerId"] = trigger_id
+
+    if folder_id is not None:
+        tag["parentFolderId"] = folder_id
+
+    result = ctx.client.update_tag(tag_id=tag_id, tag_body=tag, **ctx.api_kwargs)
+    print_success(f"Updated tag '{result.get('name', tag_id)}' (ID: {tag_id})")
+    output(result, fmt=ctx.state.output_format)
+
+
 def _set_tag_paused(tag_ids: list[str], paused: bool) -> None:
     """Set paused state on one or more tags."""
     ctx = resolve_workspace_context()
 
-    tags = ctx.client.list_tags(**ctx.api_kwargs)
-
     action = "Pausing" if paused else "Unpausing"
     failures = 0
     for tid in tag_ids:
-        tag = next((t for t in tags if t.get("tagId") == tid), None)
-        if not tag:
+        try:
+            tag = ctx.client.get_tag(tag_id=tid, **ctx.api_kwargs)
+        except ResourceNotFoundError:
             print_error(f"Tag '{tid}' not found")
             failures += 1
             continue
@@ -766,12 +857,11 @@ def delete_tag(
     """Delete a tag from the workspace."""
     ctx = resolve_workspace_context()
 
-    # Show tag name before deleting
-    tags = ctx.client.list_tags(**ctx.api_kwargs)
-    tag = next((t for t in tags if t.get("tagId") == tag_id), None)
-    if not tag:
+    try:
+        tag = ctx.client.get_tag(tag_id=tag_id, **ctx.api_kwargs)
+    except ResourceNotFoundError:
         print_error(f"Tag '{tag_id}' not found")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     tag_name = tag.get("name", tag_id)
     if not ctx.state.yes and not confirm(f"Delete tag '{tag_name}' (ID: {tag_id})?"):
