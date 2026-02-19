@@ -86,6 +86,7 @@ Thumbs.db
 
 # Project specific
 .gtm-cli/
+plans/
 credentials.json
 client_secrets.json
 token.json
