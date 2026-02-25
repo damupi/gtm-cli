@@ -59,6 +59,21 @@ def resolve_workspace_context() -> WorkspaceContext:
     )
 
 
+def add_authuser(url: str, authuser: int | None) -> str:
+    """Add authuser parameter to GTM URL if specified.
+
+    Inserts before the hash fragment: example.com/?authuser=1#/path
+    """
+    if not url or authuser is None:
+        return url
+    if "#" in url:
+        base, fragment = url.split("#", 1)
+        separator = "&" if "?" in base else "?"
+        return f"{base}{separator}authuser={authuser}#{fragment}"
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}authuser={authuser}"
+
+
 def resolve_account_id(state: State, client: GTMClient) -> str:
     """Resolve account ID from state or auto-detect if only one account.
 

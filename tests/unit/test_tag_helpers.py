@@ -2,8 +2,8 @@
 
 import pytest
 
+from gtm_cli.cli.helpers import add_authuser
 from gtm_cli.cli.tags import (
-    _add_authuser,
     _check_async_loading,
     _detect_pixels,
     _get_firing_trigger_names,
@@ -13,21 +13,21 @@ from gtm_cli.cli.tags import (
 
 class TestAddAuthuser:
     def test_no_authuser(self):
-        assert _add_authuser("https://example.com/#/path", None) == "https://example.com/#/path"
+        assert add_authuser("https://example.com/#/path", None) == "https://example.com/#/path"
 
     def test_empty_url(self):
-        assert _add_authuser("", 1) == ""
+        assert add_authuser("", 1) == ""
 
     def test_url_with_hash(self):
-        result = _add_authuser("https://tagmanager.google.com/#/container", 2)
+        result = add_authuser("https://tagmanager.google.com/#/container", 2)
         assert result == "https://tagmanager.google.com/?authuser=2#/container"
 
     def test_url_with_existing_query_and_hash(self):
-        result = _add_authuser("https://example.com/?foo=bar#/path", 1)
+        result = add_authuser("https://example.com/?foo=bar#/path", 1)
         assert result == "https://example.com/?foo=bar&authuser=1#/path"
 
     def test_url_without_hash(self):
-        result = _add_authuser("https://example.com/page", 0)
+        result = add_authuser("https://example.com/page", 0)
         assert result == "https://example.com/page?authuser=0"
 
 

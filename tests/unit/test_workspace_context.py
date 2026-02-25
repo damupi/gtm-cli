@@ -90,3 +90,48 @@ class TestResolveWorkspaceContext:
         mock_resolve_account.assert_called_once_with(fake_state, fake_client)
         mock_resolve_container.assert_called_once_with(fake_state, fake_client, "a1")
         mock_resolve_workspace.assert_called_once_with(fake_state, fake_client, "a1", "c1")
+
+
+class TestWorkspacePreview:
+    @patch("gtm_cli.cli.workspaces.webbrowser.open")
+    @patch("gtm_cli.cli.workspaces.resolve_workspace_context")
+    def test_opens_correct_preview_url(self, mock_ctx, mock_open):
+        ctx = WorkspaceContext(
+            state=_make_state(),
+            client=MagicMock(),
+            account_id="123",
+            container_id="456",
+            workspace_id="7",
+        )
+        ctx.state.authuser = None
+        mock_ctx.return_value = ctx
+
+        from gtm_cli.cli.workspaces import workspace_preview
+
+        workspace_preview()
+
+        expected = (
+            "https://tagmanager.google.com/#/container"
+            "/accounts/123/containers/456/workspaces/7/preview"
+        )
+        mock_open.assert_called_once_with(expected)
+
+    @patch("gtm_cli.cli.workspaces.webbrowser.open")
+    @patch("gtm_cli.cli.workspaces.resolve_workspace_context")
+    def test_adds_authuser_to_url(self, mock_ctx, mock_open):
+        ctx = WorkspaceContext(
+            state=_make_state(),
+            client=MagicMock(),
+            account_id="123",
+            container_id="456",
+            workspace_id="7",
+        )
+        ctx.state.authuser = 2
+        mock_ctx.return_value = ctx
+
+        from gtm_cli.cli.workspaces import workspace_preview
+
+        workspace_preview()
+
+        url = mock_open.call_args[0][0]
+        assert "?authuser=2#" in url

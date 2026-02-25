@@ -1,10 +1,12 @@
 """Workspace CLI commands."""
 
+import webbrowser
 from typing import Annotated, Any
 
 import typer
 
 from gtm_cli.cli.helpers import (
+    add_authuser,
     resolve_account_id,
     resolve_container_id,
     resolve_workspace_context,
@@ -317,3 +319,29 @@ def workspace_publish(
         f"Published version {published_version.get('containerVersionId')} "
         f"({published_version.get('name', 'unnamed')})"
     )
+
+
+@app.command("preview")
+def workspace_preview() -> None:
+    """Open GTM preview mode in the browser.
+
+    Constructs the preview URL for the current workspace and opens it
+    in your default browser. Uses the same workspace resolution as
+    other commands (auto-detects account/container/workspace).
+
+    Example: gtm workspace preview
+    Example: gtm -u 1 workspace preview
+    """
+    ctx = resolve_workspace_context()
+
+    url = (
+        f"https://tagmanager.google.com/#/container"
+        f"/accounts/{ctx.account_id}"
+        f"/containers/{ctx.container_id}"
+        f"/workspaces/{ctx.workspace_id}"
+        f"/preview"
+    )
+    url = add_authuser(url, ctx.state.authuser)
+
+    print_info(f"Opening preview: {url}")
+    webbrowser.open(url)

@@ -7,7 +7,7 @@ from typing import Annotated, Any
 
 import typer
 
-from gtm_cli.cli.helpers import WorkspaceContext, resolve_workspace_context
+from gtm_cli.cli.helpers import WorkspaceContext, add_authuser, resolve_workspace_context
 from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import (
     confirm,
@@ -17,21 +17,6 @@ from gtm_cli.utils.output import (
     print_success,
     print_warning,
 )
-
-
-def _add_authuser(url: str, authuser: int | None) -> str:
-    """Add authuser parameter to GTM URL if specified.
-
-    Inserts before the hash fragment: example.com/?authuser=1#/path
-    """
-    if not url or authuser is None:
-        return url
-    if "#" in url:
-        base, fragment = url.split("#", 1)
-        separator = "&" if "?" in base else "?"
-        return f"{base}{separator}authuser={authuser}#{fragment}"
-    separator = "&" if "?" in url else "?"
-    return f"{url}{separator}authuser={authuser}"
 
 
 def _get_firing_trigger_names(tag: dict[str, Any], trigger_names: dict[str, str]) -> str:
@@ -408,7 +393,7 @@ def audit_consent(
                     "name": tag.get("name", ""),
                     "type": tag.get("type", ""),
                     "consent_required": ", ".join(types_list),
-                    "url": _add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser),
+                    "url": add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser),
                 }
             )
         elif status == "notSet":
@@ -416,7 +401,7 @@ def audit_consent(
                 {
                     "name": tag.get("name", ""),
                     "type": tag.get("type", ""),
-                    "url": _add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser),
+                    "url": add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser),
                 }
             )
         else:
@@ -500,7 +485,7 @@ def audit_pixels(
     for tag in html_tags:
         name = tag.get("name", "")
         html = _get_tag_html(tag)
-        tag_url = _add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser)
+        tag_url = add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser)
 
         if not html:
             continue
