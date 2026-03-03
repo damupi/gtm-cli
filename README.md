@@ -59,6 +59,12 @@ Or with a local file:
 gtm init ~/shared/client_secrets.json
 ```
 
+Skip the automatic login step with `--no-login`:
+
+```bash
+gtm init https://your-internal-url/client_secrets.json --no-login
+```
+
 That's it! One command downloads the credentials and logs you in.
 
 ### Basic Usage
@@ -98,6 +104,7 @@ gtm tag list --sort name --reverse  # Z-A
 # Search tags by name or type
 gtm tag search tiktok
 gtm tag search pixel --type html
+gtm tag search facebook --exclude-paused
 
 # Create a Custom HTML tag
 gtm tag create --name "My Tag" --html '<script>console.log("hi")</script>'
@@ -114,6 +121,33 @@ gtm tag unpause 298 302 303
 # Audit tags for issues
 gtm tag audit-consent            # Find consent configuration problems
 gtm tag audit-pixels             # Find pixel loading issues
+```
+
+### Trigger Management
+
+```bash
+# Create a trigger with parameters
+gtm trigger create --name "Timer 5s" --type timer --param interval:5000 --param limit:1
+gtm trigger create --name "Page View" --type pageview
+
+# Delete a trigger
+gtm trigger delete 312
+```
+
+### Workspace Management
+
+```bash
+# Show pending unpublished changes
+gtm workspace status
+gtm workspace status --detail     # Include consent settings info
+
+# Publish workspace changes as a new version
+gtm workspace publish
+gtm workspace publish --name "v1.2" --notes "Fixed consent settings"
+
+# Open workspace preview in browser
+gtm workspace preview
+gtm -u 1 workspace preview       # With authuser for multi-account sessions
 ```
 
 ### Versions
@@ -181,6 +215,12 @@ Best for local development and interactive use:
 ```bash
 # Login (opens browser)
 gtm login
+
+# Check login status
+gtm login --status
+
+# Login without opening browser (for headless/SSH environments)
+gtm login --no-browser
 
 # Logout
 gtm logout
@@ -255,16 +295,24 @@ Remember to grant the service account access in Tag Manager:
 ## Global Options
 
 ```
---profile, -p       Use a specific profile
---account-id, -a    Override default account ID
---container-id, -c  Override default container ID
---workspace-id, -w  Override default workspace ID
+--profile, -p       Use a specific profile (env: GTM_PROFILE)
+--account-id, -a    Override default account ID (env: GTM_ACCOUNT_ID)
+--container-id, -c  Override default container ID (env: GTM_CONTAINER_ID)
+--workspace-id, -w  Override default workspace ID (env: GTM_WORKSPACE_ID)
 --service-account   Use service account credentials file
 --format, -f        Output format: json, yaml, table, plain (default: table)
 --verbose, -v       Enable debug logging
 --dry-run           Show API calls without executing
 --yes, -y           Skip confirmation prompts
---authuser, -u      Append authuser=N to GTM URLs (for multi-account Google sessions)
+--authuser, -u      Append authuser=N to GTM URLs (env: GTM_AUTHUSER)
+```
+
+Environment variables can be used instead of flags for common options:
+
+```bash
+export GTM_PROFILE=work
+export GTM_CONTAINER_ID=GTM-XXXX
+gtm tag list  # Uses work profile and GTM-XXXX container
 ```
 
 ## Configuration
