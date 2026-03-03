@@ -83,13 +83,56 @@ gtm account list --format yaml
 
 ### Tag List
 
-The tag list shows columns matching the GTM web interface:
+The tag list shows tag ID, name, type, triggers, folder, modified time, and paused status:
 
 ```bash
 gtm tag list                      # sorted by modified (newest first)
 gtm tag list --sort name          # alphabetical
 gtm tag list --sort folder        # grouped by folder
 gtm tag list --sort name --reverse  # Z-A
+```
+
+### Tag Management
+
+```bash
+# Search tags by name or type
+gtm tag search tiktok
+gtm tag search pixel --type html
+
+# Create a Custom HTML tag
+gtm tag create --name "My Tag" --html '<script>console.log("hi")</script>'
+gtm tag create --name "My Tag" --html-file pixel.html --trigger-id 295
+
+# Update a tag
+gtm tag update 421 --html-file loader.html
+gtm tag update 420 --name "TikTok Stub v2"
+
+# Pause/unpause tags
+gtm tag pause 304
+gtm tag unpause 298 302 303
+
+# Audit tags for issues
+gtm tag audit-consent            # Find consent configuration problems
+gtm tag audit-pixels             # Find pixel loading issues
+```
+
+### Versions
+
+Inspect published container versions and compare changes:
+
+```bash
+# List versions with publish dates
+gtm version list
+
+# Filter versions by date range (useful for incident investigation)
+gtm version list --since 2025-06-01
+gtm version list --since 2025-06-01 --until 2025-06-30
+
+# Get full details of a specific version (all tags, triggers, variables)
+gtm version get 42
+
+# Compare two versions to see what changed
+gtm version diff 42 43
 ```
 
 ### Piping & Scripting
@@ -100,11 +143,11 @@ Output auto-switches to plain tab-separated format when piped:
 # Find paused tags
 gtm tag list | grep paused
 
-# Get just tag names
-gtm tag list | cut -f1
+# Get just tag names (column 2)
+gtm tag list | cut -f2
 
 # Count tags per folder
-gtm tag list | cut -f4 | sort | uniq -c
+gtm tag list | cut -f5 | sort | uniq -c
 
 # Use with jq for JSON processing
 gtm tag list --format json | jq '.[].name'
@@ -188,15 +231,26 @@ Remember to grant the service account access in Tag Manager:
 | `gtm workspace get` | Get workspace details |
 | `gtm workspace status` | Show pending changes |
 | `gtm workspace publish` | Create version and publish |
-| `gtm tag list` | List tags |
+| `gtm workspace preview` | Open workspace preview in browser |
+| `gtm tag list` | List tags (with tag ID, type, triggers, folder, modified) |
 | `gtm tag get` | Get tag details |
+| `gtm tag search` | Search tags by name or type |
+| `gtm tag create` | Create a new tag |
+| `gtm tag update` | Update an existing tag |
+| `gtm tag pause` | Pause one or more tags |
+| `gtm tag unpause` | Unpause one or more tags |
+| `gtm tag delete` | Delete a tag |
 | `gtm tag audit-consent` | Audit tags for consent configuration issues |
+| `gtm tag audit-pixels` | Audit pixel and script tags for loading issues |
 | `gtm trigger list` | List triggers |
 | `gtm trigger get` | Get trigger details |
+| `gtm trigger create` | Create a new trigger |
+| `gtm trigger delete` | Delete a trigger |
 | `gtm variable list` | List variables |
 | `gtm variable get` | Get variable details |
-| `gtm version list` | List container versions |
-| `gtm version get` | Get version details |
+| `gtm version list` | List container versions (with publish date) |
+| `gtm version get` | Get full version details (all tags, triggers, variables) |
+| `gtm version diff` | Show what changed between two published versions |
 
 ## Global Options
 

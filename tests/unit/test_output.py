@@ -1,8 +1,15 @@
 """Tests for output utilities."""
 
 import json
+import time
 
-from gtm_cli.utils.output import OutputFormat, format_json, format_plain
+from gtm_cli.utils.output import (
+    OutputFormat,
+    format_json,
+    format_plain,
+    format_timestamp,
+    relative_time,
+)
 
 
 def test_format_json_list():
@@ -57,3 +64,92 @@ def test_output_format_enum():
     assert OutputFormat.YAML.value == "yaml"
     assert OutputFormat.TABLE.value == "table"
     assert OutputFormat.PLAIN.value == "plain"
+
+
+# ---------------------------------------------------------------------------
+# format_timestamp
+# ---------------------------------------------------------------------------
+
+
+class TestFormatTimestamp:
+    def test_format_timestamp_valid(self):
+        """Known ms timestamp -> expected 'YYYY-MM-DD HH:MM' string."""
+        # 1700000000000 ms = 2023-11-14 22:13:20 UTC
+        result = format_timestamp("1700000000000")
+        assert result != ""
+        # Should contain the date part (time varies by local timezone)
+        assert "2023-11-1" in result  # 14 or 15 depending on timezone
+
+    def test_format_timestamp_empty(self):
+        """Empty string -> empty string."""
+        assert format_timestamp("") == ""
+
+    def test_format_timestamp_invalid(self):
+        """Non-numeric string -> empty string."""
+        assert format_timestamp("abc") == ""
+
+    def test_format_timestamp_zero(self):
+        """Zero timestamp -> epoch date string."""
+        result = format_timestamp("0")
+        assert result != ""
+        assert "1970" in result or "1969" in result  # depends on timezone
+
+
+# ---------------------------------------------------------------------------
+# relative_time
+# ---------------------------------------------------------------------------
+
+
+class TestRelativeTime:
+    def test_relative_time_just_now(self):
+        """< 60 seconds ago -> 'just now'."""
+        now_ms = str(int(time.time() * 1000))
+        assert relative_time(now_ms) == "just now"
+
+    def test_relative_time_minutes(self):
+        """5 minutes ago -> '5 minutes ago'."""
+        five_min_ago = str(int((time.time() - 300) * 1000))
+        assert relative_time(five_min_ago) == "5 minutes ago"
+
+    def test_relative_time_one_minute(self):
+        """1 minute ago -> '1 minute ago' (singular)."""
+        one_min_ago = str(int((time.time() - 60) * 1000))
+        assert relative_time(one_min_ago) == "1 minute ago"
+
+    def test_relative_time_hours(self):
+        """3 hours ago -> '3 hours ago'."""
+        three_hours_ago = str(int((time.time() - 3 * 3600) * 1000))
+        assert relative_time(three_hours_ago) == "3 hours ago"
+
+    def test_relative_time_one_hour(self):
+        """1 hour ago -> '1 hour ago' (singular)."""
+        one_hour_ago = str(int((time.time() - 3600) * 1000))
+        assert relative_time(one_hour_ago) == "1 hour ago"
+
+    def test_relative_time_days(self):
+        """10 days ago -> '10 days ago'."""
+        ten_days_ago = str(int((time.time() - 10 * 86400) * 1000))
+        assert relative_time(ten_days_ago) == "10 days ago"
+
+    def test_relative_time_one_day(self):
+        """1 day ago -> '1 day ago' (singular)."""
+        one_day_ago = str(int((time.time() - 86400) * 1000))
+        assert relative_time(one_day_ago) == "1 day ago"
+
+    def test_relative_time_months(self):
+        """90 days ago -> '3 months ago'."""
+        ninety_days_ago = str(int((time.time() - 90 * 86400) * 1000))
+        assert relative_time(ninety_days_ago) == "3 months ago"
+
+    def test_relative_time_years(self):
+        """400 days ago -> '1 year ago'."""
+        four_hundred_days_ago = str(int((time.time() - 400 * 86400) * 1000))
+        assert relative_time(four_hundred_days_ago) == "1 year ago"
+
+    def test_relative_time_empty(self):
+        """Empty string -> empty string."""
+        assert relative_time("") == ""
+
+    def test_relative_time_invalid(self):
+        """Non-numeric string -> empty string."""
+        assert relative_time("abc") == ""

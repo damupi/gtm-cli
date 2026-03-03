@@ -1,7 +1,6 @@
 """Tag CLI commands."""
 
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -16,6 +15,7 @@ from gtm_cli.utils.output import (
     print_info,
     print_success,
     print_warning,
+    relative_time,
 )
 
 
@@ -24,42 +24,6 @@ def _get_firing_trigger_names(tag: dict[str, Any], trigger_names: dict[str, str]
     trigger_ids = tag.get("firingTriggerId", [])
     names = [str(trigger_names.get(tid, tid)) for tid in trigger_ids]
     return ", ".join(names) if names else ""
-
-
-def _relative_time(fingerprint: str) -> str:
-    """Convert fingerprint timestamp to relative time like '3 days ago'."""
-    if not fingerprint:
-        return ""
-    try:
-        ts = int(fingerprint) / 1000
-        dt = datetime.fromtimestamp(ts)
-        now = datetime.now()
-        diff = now - dt
-
-        seconds = diff.total_seconds()
-        if seconds < 60:
-            return "just now"
-        minutes = seconds / 60
-        if minutes < 60:
-            n = int(minutes)
-            return f"{n} minute{'s' if n != 1 else ''} ago"
-        hours = minutes / 60
-        if hours < 24:
-            n = int(hours)
-            return f"{n} hour{'s' if n != 1 else ''} ago"
-        days = hours / 24
-        if days < 30:
-            n = int(days)
-            return f"{n} day{'s' if n != 1 else ''} ago"
-        months = days / 30
-        if months < 12:
-            n = int(months)
-            return f"{n} month{'s' if n != 1 else ''} ago"
-        years = days / 365
-        n = int(years)
-        return f"{n} year{'s' if n != 1 else ''} ago"
-    except (ValueError, OSError):
-        return ""
 
 
 # --- Pixel audit helpers ---
@@ -240,11 +204,12 @@ def list_tags(
 
     data = [
         {
+            "tag_id": t.get("tagId", ""),
             "name": t.get("name", ""),
             "type": t.get("type", ""),
             "triggers": _get_firing_trigger_names(t, trigger_names),
             "folder": folder_names.get(t.get("parentFolderId"), "-"),
-            "modified": _relative_time(t.get("fingerprint", "")),
+            "modified": relative_time(t.get("fingerprint", "")),
             "paused": "paused" if t.get("paused") else "",
             "_fingerprint": t.get("fingerprint", "0"),  # for sorting
         }
@@ -321,9 +286,9 @@ def search_tags(
 
     data = [
         {
+            "tag_id": t.get("tagId", ""),
             "name": t.get("name", ""),
             "type": t.get("type", ""),
-            "id": t.get("tagId", ""),
             "triggers": _get_firing_trigger_names(t, trigger_names),
             "folder": folder_names.get(t.get("parentFolderId"), "-"),
             "paused": "paused" if t.get("paused") else "",

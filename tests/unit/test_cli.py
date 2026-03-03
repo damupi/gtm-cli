@@ -35,6 +35,15 @@ def test_tag_help():
     assert "audit-pixels" in result.stdout
 
 
+def test_version_help():
+    """Test version subcommand help."""
+    result = runner.invoke(app, ["version", "--help"])
+    assert result.exit_code == 0
+    assert "list" in result.stdout
+    assert "get" in result.stdout
+    assert "diff" in result.stdout
+
+
 def test_workspace_help():
     """Test workspace subcommand help."""
     result = runner.invoke(app, ["workspace", "--help"])

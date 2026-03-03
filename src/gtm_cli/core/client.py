@@ -71,7 +71,7 @@ class GTMClient:
         return self._service
 
     def _handle_error(self, error: HttpError, operation: str) -> None:
-        """Convert HTTP errors to GTM Orchestrator exceptions.
+        """Convert HTTP errors to typed exceptions.
 
         Args:
             error: The HTTP error
@@ -86,18 +86,18 @@ class GTMClient:
 
         if status_code == 404:
             raise ResourceNotFoundError("Resource", operation) from error
-        elif status_code == 403:
+        if status_code == 403:
             raise PermissionDeniedError(operation) from error
-        else:
-            error_details: dict[str, Any] = {}
-            with contextlib.suppress(AttributeError):
-                error_details = error.error_details or {}
 
-            raise APIError(
-                f"API error during {operation}: {error}",
-                status_code=status_code,
-                error_details=error_details,
-            ) from error
+        error_details: dict[str, Any] = {}
+        with contextlib.suppress(AttributeError):
+            error_details = error.error_details or {}
+
+        raise APIError(
+            f"API error during {operation}: {error}",
+            status_code=status_code,
+            error_details=error_details,
+        ) from error
 
     # Account methods
     def list_accounts(
@@ -637,6 +637,36 @@ class GTMClient:
         except HttpError as e:
             self._handle_error(e, "list versions")
             return []
+
+    def get_version(
+        self,
+        account_id: str,
+        container_id: str,
+        version_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Get a specific container version with full detail.
+
+        Returns all tags, triggers, variables, and the fingerprint timestamp.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            version_id: The version ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Full version dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/versions/{version_id}"
+        try:
+            return service.accounts().containers().versions().get(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"get version {version_id}")
+            return {}
 
     def create_version(
         self,

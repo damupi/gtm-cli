@@ -2,6 +2,7 @@
 
 import json
 import sys
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -155,6 +156,51 @@ def print_info(message: str) -> None:
     """Print an info message. Suppressed when stdout is not a TTY (piping)."""
     if is_interactive():
         console.print(f"[blue]ℹ[/blue] {message}")
+
+
+def _ago(n: int, unit: str) -> str:
+    """Format '3 days ago' with correct pluralization."""
+    return f"{n} {unit}{'s' if n != 1 else ''} ago"
+
+
+def relative_time(fingerprint: str) -> str:
+    """Convert fingerprint timestamp (ms since epoch) to relative time like '3 days ago'."""
+    if not fingerprint:
+        return ""
+    try:
+        ts = int(fingerprint) / 1000
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+        now = datetime.now(tz=timezone.utc)
+        seconds = (now - dt).total_seconds()
+
+        if seconds < 60:
+            return "just now"
+        minutes = seconds / 60
+        if minutes < 60:
+            return _ago(int(minutes), "minute")
+        hours = minutes / 60
+        if hours < 24:
+            return _ago(int(hours), "hour")
+        days = hours / 24
+        if days < 30:
+            return _ago(int(days), "day")
+        if days < 365:
+            return _ago(int(days / 30), "month")
+        return _ago(int(days / 365), "year")
+    except (ValueError, OSError):
+        return ""
+
+
+def format_timestamp(fingerprint: str) -> str:
+    """Convert fingerprint timestamp (ms since epoch) to local datetime string."""
+    if not fingerprint:
+        return ""
+    try:
+        ts = int(fingerprint) / 1000
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+        return dt.astimezone().strftime("%Y-%m-%d %H:%M")
+    except (ValueError, OSError):
+        return ""
 
 
 def confirm(message: str, default: bool = False) -> bool:
