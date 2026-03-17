@@ -101,10 +101,21 @@ gtm tag list --sort name --reverse  # Z-A
 ### Tag Management
 
 ```bash
-# Search tags by name or type
+# Search tags by name, type, or trigger
 gtm tag search tiktok
 gtm tag search pixel --type html
 gtm tag search facebook --exclude-paused
+gtm tag search --trigger 62              # All tags on trigger ID 62
+gtm tag search --trigger "Booking"       # All tags on triggers matching "Booking"
+
+# Get one or more tags
+gtm tag get 298
+gtm tag get 298 302 303 313 --format json
+
+# Compare tags side by side
+gtm tag compare 298 17                   # Compare two tags by ID
+gtm tag compare --trigger 62             # Compare all tags on a trigger
+gtm tag compare --folder tiktok --folder facebook  # Compare across folders
 
 # Create a Custom HTML tag
 gtm tag create --name "My Tag" --html '<script>console.log("hi")</script>'
@@ -121,6 +132,10 @@ gtm tag unpause 298 302 303
 # Audit tags for issues
 gtm tag audit-consent            # Find consent configuration problems
 gtm tag audit-pixels             # Find pixel loading issues
+gtm tag audit-pixels --params    # Include event parameters in audit
+gtm tag audit-params             # Show event params per tag
+gtm tag audit-params --folder tiktok     # Filter by folder
+gtm tag audit-setup-deps         # Find broken setup/teardown dependencies
 ```
 
 ### Trigger Management
@@ -273,15 +288,18 @@ Remember to grant the service account access in Tag Manager:
 | `gtm workspace publish` | Create version and publish |
 | `gtm workspace preview` | Open workspace preview in browser |
 | `gtm tag list` | List tags (with tag ID, type, triggers, folder, modified) |
-| `gtm tag get` | Get tag details |
-| `gtm tag search` | Search tags by name or type |
+| `gtm tag get` | Get details of one or more tags |
+| `gtm tag search` | Search tags by name, type, or trigger |
+| `gtm tag compare` | Compare tags side by side (by ID, trigger, or folder) |
 | `gtm tag create` | Create a new tag |
 | `gtm tag update` | Update an existing tag |
 | `gtm tag pause` | Pause one or more tags |
 | `gtm tag unpause` | Unpause one or more tags |
 | `gtm tag delete` | Delete a tag |
 | `gtm tag audit-consent` | Audit tags for consent configuration issues |
-| `gtm tag audit-pixels` | Audit pixel and script tags for loading issues |
+| `gtm tag audit-pixels` | Audit pixel/script loading issues (with optional `--params`) |
+| `gtm tag audit-params` | Audit event parameters sent by tracking tags |
+| `gtm tag audit-setup-deps` | Find broken setup/teardown tag dependencies |
 | `gtm trigger list` | List triggers |
 | `gtm trigger get` | Get trigger details |
 | `gtm trigger create` | Create a new trigger |
