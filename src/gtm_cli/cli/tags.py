@@ -946,6 +946,144 @@ def audit_params(
     )
 
 
+@app.command("compare")
+def compare_tags(
+    tag_ids: Annotated[
+        list[str] | None,
+        typer.Argument(help="Tag IDs to compare (2 or more)"),
+    ] = None,
+    trigger: Annotated[
+        str | None,
+        typer.Option(
+            "--trigger",
+            help="Compare all tags sharing this trigger ID",
+        ),
+    ] = None,
+    folder: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--folder",
+            help="Compare tags across folders (repeatable, substring match)",
+        ),
+    ] = None,
+) -> None:
+    """Compare tags side by side, highlighting differences.
+
+    Compare specific tags by ID, all tags on a trigger, or tags across folders.
+
+    Examples:
+        gtm tag compare 298 17
+        gtm tag compare --trigger 3
+        gtm tag compare --folder tiktok --folder facebook
+    """
+    if not tag_ids and not trigger and not folder:
+        print_error("Provide tag IDs, --trigger, or --folder to compare")
+        raise typer.Exit(1)
+
+    ctx = resolve_workspace_context()
+
+    all_tags = ctx.client.list_tags(**ctx.api_kwargs)
+    folder_names, trigger_names = _build_tag_lookups(ctx)
+
+    # Resolve which tags to compare
+    tags_to_compare: list[dict[str, Any]] = []
+
+    if tag_ids:
+        tag_map = {t.get("tagId", ""): t for t in all_tags}
+        for tid in tag_ids:
+            if tid in tag_map:
+                tags_to_compare.append(tag_map[tid])
+            else:
+                print_error(f"Tag '{tid}' not found")
+                raise typer.Exit(1)
+
+    elif trigger:
+        for t in all_tags:
+            if trigger in t.get("firingTriggerId", []):
+                tags_to_compare.append(t)
+        if not tags_to_compare:
+            trigger_label = trigger_names.get(trigger, trigger)
+            print_warning(f"No tags found on trigger '{trigger_label}' (ID: {trigger})")
+            raise typer.Exit(0)
+
+    elif folder:
+        folder_lowers = [f.lower() for f in folder]
+        for t in all_tags:
+            tag_folder = folder_names.get(t.get("parentFolderId", ""), "")
+            if any(fl in tag_folder.lower() for fl in folder_lowers):
+                tags_to_compare.append(t)
+        if not tags_to_compare:
+            print_warning(f"No tags found in folders matching: {', '.join(folder)}")
+            raise typer.Exit(0)
+
+    if len(tags_to_compare) < 2:
+        print_warning("Need at least 2 tags to compare")
+        raise typer.Exit(0)
+
+    # Extract comparison data for each tag
+    comparison: list[dict[str, str]] = []
+    all_params: set[str] = set()
+    tag_events: dict[str, list[dict[str, str]]] = {}
+
+    for tag in tags_to_compare:
+        tag_name = tag.get("name", "")
+        html = _get_tag_html(tag)
+        events = _extract_event_calls(html) if html else []
+        pixels = _detect_pixels(html) if html else []
+        tag_events[tag_name] = events
+        for ev in events:
+            if ev["params"] != "(none)":
+                all_params.update(p.strip() for p in ev["params"].split(","))
+
+    # Build comparison table
+    for tag in tags_to_compare:
+        tag_name = tag.get("name", "")
+        tag_id = tag.get("tagId", "")
+        html = _get_tag_html(tag)
+        events = tag_events.get(tag_name, [])
+        pixels = _detect_pixels(html) if html else []
+        trigger_list = _get_firing_trigger_names(tag, trigger_names)
+        tag_folder = folder_names.get(tag.get("parentFolderId", ""), "-")
+
+        event_summary = ", ".join(f"{e['event']}" for e in events) or "-"
+        pixel_summary = ", ".join(f"{p['provider']}" for p in pixels) or "-"
+
+        # Collect params this tag sends
+        tag_params: set[str] = set()
+        for ev in events:
+            if ev["params"] != "(none)":
+                tag_params.update(p.strip() for p in ev["params"].split(","))
+
+        row: dict[str, str] = {
+            "tag": tag_name,
+            "tag_id": tag_id,
+            "folder": tag_folder,
+            "type": tag.get("type", ""),
+            "triggers": trigger_list,
+            "pixels": pixel_summary,
+            "events": event_summary,
+            "paused": "paused" if tag.get("paused") else "",
+        }
+
+        # Add param columns
+        for param in sorted(all_params):
+            row[param] = "✓" if param in tag_params else "-"
+
+        comparison.append(row)
+
+    # Build columns list
+    columns = ["tag", "tag_id", "folder", "type", "triggers", "pixels", "events", "paused"]
+    columns.extend(sorted(all_params))
+
+    print_success(f"Comparing {len(tags_to_compare)} tags:")
+    output(
+        comparison,
+        fmt=ctx.state.output_format,
+        columns=columns,
+        title="Tag Comparison",
+    )
+
+
 @app.command("create")
 def create_tag(
     name: Annotated[
