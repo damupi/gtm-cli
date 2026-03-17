@@ -5,7 +5,7 @@ from typing import Annotated, Any
 import typer
 
 from gtm_cli.cli.helpers import resolve_workspace_context
-from gtm_cli.utils.output import confirm, output, print_error, print_success
+from gtm_cli.utils.output import confirm, output, print_error, print_info, print_success
 
 # Timer triggers use top-level fields, not the parameter array
 _TIMER_TOP_LEVEL_KEYS = frozenset({"interval", "limit", "eventName"})
@@ -135,3 +135,73 @@ def delete_trigger(
 
     ctx.client.delete_trigger(trigger_id=trigger_id, **ctx.api_kwargs)
     print_success(f"Deleted trigger '{trigger_name}' (ID: {trigger_id})")
+
+
+@app.command("update")
+def update_trigger(
+    trigger_id: Annotated[str, typer.Argument(help="Trigger ID to update")],
+    name: Annotated[
+        str | None,
+        typer.Option("--name", "-n", help="New trigger name"),
+    ] = None,
+    json_body: Annotated[
+        str | None,
+        typer.Option(
+            "--json",
+            help="Full trigger JSON body as inline string or file path (overrides --name)",
+        ),
+    ] = None,
+) -> None:
+    """Update an existing trigger.
+
+    Fetches the current trigger, applies changes, and shows a field-level diff
+    before calling the API.
+
+    Examples:
+        gtm trigger update 12345 --name "New Name"
+        gtm trigger update 12345 --json '{"name":"New Name","type":"pageview"}'
+        gtm trigger update 12345 --json ./trigger.json
+    """
+    import json
+    from pathlib import Path
+
+    ctx = resolve_workspace_context()
+
+    triggers = ctx.client.list_triggers(**ctx.api_kwargs)
+    trigger = next((t for t in triggers if t.get("triggerId") == trigger_id), None)
+    if not trigger:
+        print_error(f"Trigger '{trigger_id}' not found")
+        raise typer.Exit(1)
+
+    if json_body is not None:
+        p = Path(json_body)
+        if p.exists() and p.is_file():
+            with open(p) as f:
+                updates = json.load(f)
+        else:
+            updates = json.loads(json_body)
+        body = {**trigger, **updates}
+    else:
+        body = dict(trigger)
+        if name is not None:
+            body["name"] = name
+
+    changed = {k: (trigger.get(k), body.get(k)) for k in body if body.get(k) != trigger.get(k)}
+    if not changed:
+        print_info("No changes detected.")
+        return
+
+    for field, (old, new) in changed.items():
+        print_info(f"  {field}: {old!r} → {new!r}")
+
+    if ctx.state.dry_run:
+        print_info("[dry-run] Would update trigger, skipping API call.")
+        return
+
+    result = ctx.client.update_trigger(
+        trigger_id=trigger_id,
+        trigger_body=body,
+        **ctx.api_kwargs,
+    )
+    print_success(f"Updated trigger '{result.get('name', '')}' (ID: {result.get('triggerId', '')})")
+    output(result, fmt=ctx.state.output_format)

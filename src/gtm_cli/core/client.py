@@ -539,6 +539,45 @@ class GTMClient:
         except HttpError as e:
             self._handle_error(e, f"delete trigger {trigger_id}")
 
+    def update_trigger(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        trigger_id: str,
+        trigger_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a trigger in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            trigger_id: The trigger ID to update
+            trigger_body: Full trigger body (PUT semantics)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Updated trigger dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/triggers/{trigger_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .triggers()
+                .update(path=path, body=trigger_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, f"update trigger {trigger_id}")
+            return {}
+
     # Variable methods
     def list_variables(
         self,
@@ -575,6 +614,108 @@ class GTMClient:
         except HttpError as e:
             self._handle_error(e, "list variables")
             return []
+
+    def create_variable(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        variable_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a variable in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            variable_body: Variable definition (name, type, parameter, etc.)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Created variable dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .variables()
+                .create(parent=parent, body=variable_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, "create variable")
+            return {}
+
+    def update_variable(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        variable_id: str,
+        variable_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a variable in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            variable_id: The variable ID to update
+            variable_body: Full variable body (PUT semantics)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Updated variable dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/variables/{variable_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .variables()
+                .update(path=path, body=variable_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, f"update variable {variable_id}")
+            return {}
+
+    def delete_variable(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        variable_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> None:
+        """Delete a variable from a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            variable_id: The variable ID to delete
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/variables/{variable_id}"
+        try:
+            service.accounts().containers().workspaces().variables().delete(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"delete variable {variable_id}")
 
     # Folder methods
     def list_folders(

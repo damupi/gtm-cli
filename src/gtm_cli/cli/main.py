@@ -97,13 +97,13 @@ def main(
         ),
     ] = None,
     output_format: Annotated[
-        OutputFormat,
+        OutputFormat | None,
         typer.Option(
             "--format",
             "-f",
             help="Output format",
         ),
-    ] = OutputFormat.TABLE,
+    ] = None,
     verbose: Annotated[
         bool,
         typer.Option(
@@ -171,7 +171,11 @@ def main(
     state.container_id = container_id or profile_obj.defaults.container_id
     state.workspace_id = workspace_id or profile_obj.defaults.workspace_id
     state.service_account = str(service_account) if service_account else None
-    state.output_format = output_format
+    if output_format is not None:
+        state.output_format = output_format
+    else:
+        global_cfg = config_manager.get_global_config()
+        state.output_format = OutputFormat(global_cfg.output.format)
     state.verbose = verbose
     state.dry_run = dry_run
     state.yes = yes
