@@ -1179,6 +1179,14 @@ def update_tag(
         str | None,
         typer.Option("--folder-id", help="Move to folder ID"),
     ] = None,
+    clear_setup_tag: Annotated[
+        bool,
+        typer.Option("--clear-setup-tag", help="Remove all setupTag dependencies"),
+    ] = False,
+    clear_teardown_tag: Annotated[
+        bool,
+        typer.Option("--clear-teardown-tag", help="Remove all teardownTag dependencies"),
+    ] = False,
 ) -> None:
     """Update an existing tag in the workspace.
 
@@ -1189,11 +1197,12 @@ def update_tag(
         gtm tag update 421 --html-file loader.html
         gtm tag update 420 --name "TikTok Stub v2"
         gtm tag update 421 --trigger-id 295 --trigger-id 296
+        gtm tag update 308 --clear-setup-tag
     """
     ctx = resolve_workspace_context()
 
-    if all(v is None for v in (name, html, html_file, trigger_id, folder_id)):
-        print_error("No changes specified. Use --name, --html, --html-file, --trigger-id, or --folder-id.")
+    if all(v is None for v in (name, html, html_file, trigger_id, folder_id)) and not clear_setup_tag and not clear_teardown_tag:
+        print_error("No changes specified. Use --name, --html, --html-file, --trigger-id, --folder-id, --clear-setup-tag, or --clear-teardown-tag.")
         raise typer.Exit(1)
 
     html_content = _resolve_html_content(html, html_file)
@@ -1224,6 +1233,14 @@ def update_tag(
 
     if folder_id is not None:
         tag["parentFolderId"] = folder_id
+
+    if clear_setup_tag and "setupTag" in tag:
+        removed = [st.get("tagName", "unknown") for st in tag.pop("setupTag")]
+        print_info(f"Removed setupTag dependencies: {', '.join(removed)}")
+
+    if clear_teardown_tag and "teardownTag" in tag:
+        removed = [st.get("tagName", "unknown") for st in tag.pop("teardownTag")]
+        print_info(f"Removed teardownTag dependencies: {', '.join(removed)}")
 
     result = ctx.client.update_tag(tag_id=tag_id, tag_body=tag, **ctx.api_kwargs)
     print_success(f"Updated tag '{result.get('name', tag_id)}' (ID: {tag_id})")
