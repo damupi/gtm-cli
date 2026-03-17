@@ -120,6 +120,80 @@ def _detect_pixels(html: str) -> list[dict[str, str]]:
     return found
 
 
+# Event call patterns: (provider, regex to extract event name + params object)
+# These match calls like ttq.track('ViewContent', {content_type: 'product'})
+_EVENT_CALL_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    (
+        "TikTok",
+        re.compile(
+            r"""ttq\.track\(\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Meta/Facebook",
+        re.compile(
+            r"""fbq\(\s*['"]track(?:Custom)?['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Google Ads",
+        re.compile(
+            r"""gtag\(\s*['"]event['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Snapchat",
+        re.compile(
+            r"""snaptr\(\s*['"]track['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Pinterest",
+        re.compile(
+            r"""pintrk\(\s*['"]track['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Twitter/X",
+        re.compile(
+            r"""twq\(\s*['"]track['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+]
+
+# Regex to extract keys from a JS object literal: {key1: val, key2: val}
+_JS_OBJECT_KEY_RE = re.compile(r"""(?:['"]?(\w+)['"]?)\s*:""")
+
+
+def _extract_event_calls(html: str) -> list[dict[str, str]]:
+    """Extract event tracking calls from HTML content.
+
+    Returns list of dicts with: provider, event, params (comma-separated param names).
+    """
+    events: list[dict[str, str]] = []
+    for provider, pattern in _EVENT_CALL_PATTERNS:
+        for match in pattern.finditer(html):
+            event_name = match.group(1)
+            params_obj = match.group(2) if match.lastindex and match.lastindex >= 2 else None
+            param_names: list[str] = []
+            if params_obj:
+                param_names = _JS_OBJECT_KEY_RE.findall(params_obj)
+            events.append(
+                {
+                    "provider": provider,
+                    "event": event_name,
+                    "params": ", ".join(param_names) if param_names else "(none)",
+                }
+            )
+    return events
+
+
 def _is_all_pages_trigger(trigger_name: str) -> bool:
     """Check if a trigger name looks like an all-pages trigger (heuristic, substring match)."""
     normalized = trigger_name.lower().strip()
@@ -475,6 +549,13 @@ def audit_pixels(
             help="Show the raw HTML content of each tag",
         ),
     ] = False,
+    show_params: Annotated[
+        bool,
+        typer.Option(
+            "--params",
+            help="Show event parameters sent by each pixel tag",
+        ),
+    ] = False,
 ) -> None:
     """Audit pixel and script tags for loading issues.
 
@@ -563,6 +644,14 @@ def audit_pixels(
             status = "async" if sf["async"] == "yes" else "SYNC"
             async_summary.append(f"{sf.get('method', 'static')}:{status}")
 
+        # Extract event params if requested
+        event_params_summary = ""
+        if show_params:
+            events = _extract_event_calls(html)
+            if events:
+                parts = [f"{e['event']}({e['params']})" for e in events]
+                event_params_summary = "; ".join(parts)
+
         detail: dict[str, Any] = {
             "name": name,
             "id": tag.get("tagId", ""),
@@ -571,6 +660,8 @@ def audit_pixels(
             "loading": ", ".join(async_summary) if async_summary else "no external scripts",
             "paused": "paused" if tag.get("paused") else "",
         }
+        if show_params:
+            detail["events"] = event_params_summary or "-"
         if show_html:
             detail["html"] = html
         tag_details.append(detail)
@@ -635,6 +726,8 @@ def audit_pixels(
     if tag_details:
         print(f"\n--- Custom HTML Tags ({len(tag_details)}) ---")
         columns = ["name", "id", "triggers", "pixels", "loading", "paused"]
+        if show_params:
+            columns.insert(-1, "events")
         if show_html:
             columns.append("html")
         output(
@@ -750,6 +843,106 @@ def audit_setup_deps() -> None:
         fmt=ctx.state.output_format,
         columns=["tag", "tag_id", "setup_tag_name", "setup_tag_id", "issue", "stop_on_failure", "url"],
         title="Broken Setup/Teardown Dependencies",
+    )
+
+
+@app.command("audit-params")
+def audit_params(
+    tag_ids: Annotated[
+        list[str] | None,
+        typer.Argument(help="Specific tag IDs to audit (default: all)"),
+    ] = None,
+    folder: Annotated[
+        str | None,
+        typer.Option(
+            "--folder",
+            help="Filter by folder name (substring match)",
+        ),
+    ] = None,
+) -> None:
+    """Audit event parameters sent by pixel/tracking tags.
+
+    Parses JavaScript in Custom HTML tags to extract event tracking calls
+    (ttq.track, fbq, gtag, snaptr, pintrk, twq) and shows which parameters
+    each tag sends.
+
+    Examples:
+        gtm tag audit-params
+        gtm tag audit-params 298 302 303 313
+        gtm tag audit-params --folder tiktok
+    """
+    ctx = resolve_workspace_context()
+
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
+    folder_names, _ = _build_tag_lookups(ctx)
+
+    # Filter to specific tags or folder
+    if tag_ids:
+        tag_id_set = set(tag_ids)
+        tags = [t for t in tags if t.get("tagId", "") in tag_id_set]
+    if folder:
+        folder_lower = folder.lower()
+        tags = [
+            t
+            for t in tags
+            if folder_lower in folder_names.get(t.get("parentFolderId", ""), "").lower()
+        ]
+
+    # Only Custom HTML tags have parseable JS
+    html_tags = [t for t in tags if t.get("type") == "html"]
+
+    if not html_tags:
+        print_info("No Custom HTML tags found matching the criteria.")
+        raise typer.Exit(0)
+
+    data: list[dict[str, str]] = []
+    for tag in html_tags:
+        html = _get_tag_html(tag)
+        if not html:
+            continue
+        events = _extract_event_calls(html)
+        tag_name = tag.get("name", "")
+        tag_id = tag.get("tagId", "")
+        tag_folder = folder_names.get(tag.get("parentFolderId", ""), "-")
+
+        if events:
+            for ev in events:
+                data.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "folder": tag_folder,
+                        "provider": ev["provider"],
+                        "event": ev["event"],
+                        "params": ev["params"],
+                    }
+                )
+        else:
+            # Tag has HTML but no recognized event calls
+            pixels = _detect_pixels(html)
+            if pixels:
+                for p in pixels:
+                    data.append(
+                        {
+                            "tag": tag_name,
+                            "tag_id": tag_id,
+                            "folder": tag_folder,
+                            "provider": p["provider"],
+                            "event": "(init only)",
+                            "params": "(none)",
+                        }
+                    )
+
+    if not data:
+        print_info("No event tracking calls found in the matched tags.")
+        raise typer.Exit(0)
+
+    print_success(f"Found {len(data)} event call(s) across {len(html_tags)} tag(s):")
+    output(
+        data,
+        fmt=ctx.state.output_format,
+        columns=["tag", "tag_id", "folder", "provider", "event", "params"],
+        title="Event Parameter Audit",
     )
 
 
