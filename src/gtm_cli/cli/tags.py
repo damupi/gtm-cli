@@ -133,7 +133,7 @@ _EVENT_CALL_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
         "Meta/Facebook",
         re.compile(
-            r"""fbq\(\s*['"]track(?:Custom)?['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            r"""fbq\(\s*['"]track(?:Custom)?['"]\s*,\s*['"]([^'"]+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
             re.DOTALL,
         ),
     ),
@@ -168,7 +168,8 @@ _EVENT_CALL_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 # Regex to extract keys from a JS object literal: {key1: val, key2: val}
-_JS_OBJECT_KEY_RE = re.compile(r"""(?:['"]?(\w+)['"]?)\s*:""")
+# Only match keys at the start of the object or after a comma (avoids matching inside string values)
+_JS_OBJECT_KEY_RE = re.compile(r"""(?:^|[{,])\s*['"]?(\w+)['"]?\s*:""")
 
 
 def _extract_event_calls(html: str) -> list[dict[str, str]]:
@@ -323,7 +324,7 @@ def search_tags(
         str | None,
         typer.Option(
             "--trigger",
-            help="Filter by trigger ID or trigger name (substring match)",
+            help="Filter by firing trigger ID or name (substring match)",
         ),
     ] = None,
     exclude_paused: Annotated[
@@ -767,71 +768,51 @@ def audit_setup_deps() -> None:
 
     issues: list[dict[str, str]] = []
 
-    for tag in tags:
+    def _check_dep_refs(
+        tag: dict[str, Any],
+        ref_key: str,
+        dep_type: str,
+        stop_key: str,
+    ) -> None:
         tag_name = tag.get("name", "")
-        tag_id = tag.get("tagId", "")
+        tag_id_val = tag.get("tagId", "")
         tag_url = add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser)
 
-        for setup_ref in tag.get("setupTag", []):
-            setup_id = setup_ref.get("tagName", "")
-            stop_on_failure = setup_ref.get("stopOnSetupFailure", False)
+        for ref in tag.get(ref_key, []):
+            dep_id = ref.get("tagName", "")
+            stop_on_failure = ref.get(stop_key, False)
+            dep_tag = tag_map.get(dep_id)
 
-            setup_tag = tag_map.get(setup_id)
-            if setup_tag is None:
+            if dep_tag is None:
                 issues.append(
                     {
                         "tag": tag_name,
-                        "tag_id": tag_id,
-                        "setup_tag_id": setup_id,
-                        "setup_tag_name": "(missing)",
-                        "issue": "setup tag not found",
+                        "tag_id": tag_id_val,
+                        "dep_type": dep_type,
+                        "dep_tag_id": dep_id,
+                        "dep_tag_name": "(missing)",
+                        "issue": f"{dep_type} tag not found",
                         "stop_on_failure": "yes" if stop_on_failure else "no",
                         "url": tag_url,
                     }
                 )
-            elif setup_tag.get("paused"):
+            elif dep_tag.get("paused"):
                 issues.append(
                     {
                         "tag": tag_name,
-                        "tag_id": tag_id,
-                        "setup_tag_id": setup_id,
-                        "setup_tag_name": setup_tag.get("name", ""),
-                        "issue": "setup tag is PAUSED",
+                        "tag_id": tag_id_val,
+                        "dep_type": dep_type,
+                        "dep_tag_id": dep_id,
+                        "dep_tag_name": dep_tag.get("name", ""),
+                        "issue": f"{dep_type} tag is PAUSED",
                         "stop_on_failure": "yes" if stop_on_failure else "no",
                         "url": tag_url,
                     }
                 )
 
-        # Also check teardownTag references
-        for teardown_ref in tag.get("teardownTag", []):
-            teardown_id = teardown_ref.get("tagName", "")
-            stop_on_failure = teardown_ref.get("stopTeardownOnFailure", False)
-
-            teardown_tag = tag_map.get(teardown_id)
-            if teardown_tag is None:
-                issues.append(
-                    {
-                        "tag": tag_name,
-                        "tag_id": tag_id,
-                        "setup_tag_id": teardown_id,
-                        "setup_tag_name": "(missing)",
-                        "issue": "teardown tag not found",
-                        "stop_on_failure": "yes" if stop_on_failure else "no",
-                        "url": tag_url,
-                    }
-                )
-            elif teardown_tag.get("paused"):
-                issues.append(
-                    {
-                        "tag": tag_name,
-                        "tag_id": tag_id,
-                        "setup_tag_id": teardown_id,
-                        "setup_tag_name": teardown_tag.get("name", ""),
-                        "issue": "teardown tag is PAUSED",
-                        "stop_on_failure": "yes" if stop_on_failure else "no",
-                        "url": tag_url,
-                    }
-                )
+    for tag in tags:
+        _check_dep_refs(tag, "setupTag", "setup", "stopOnSetupFailure")
+        _check_dep_refs(tag, "teardownTag", "teardown", "stopTeardownOnFailure")
 
     if not issues:
         print_success("No broken setup/teardown tag dependencies found.")
@@ -841,7 +822,10 @@ def audit_setup_deps() -> None:
     output(
         issues,
         fmt=ctx.state.output_format,
-        columns=["tag", "tag_id", "setup_tag_name", "setup_tag_id", "issue", "stop_on_failure", "url"],
+        columns=[
+            "tag", "tag_id", "dep_type", "dep_tag_name", "dep_tag_id",
+            "issue", "stop_on_failure", "url",
+        ],
         title="Broken Setup/Teardown Dependencies",
     )
 
@@ -853,10 +837,10 @@ def audit_params(
         typer.Argument(help="Specific tag IDs to audit (default: all)"),
     ] = None,
     folder: Annotated[
-        str | None,
+        list[str] | None,
         typer.Option(
             "--folder",
-            help="Filter by folder name (substring match)",
+            help="Filter by folder name (substring match, repeatable)",
         ),
     ] = None,
 ) -> None:
@@ -870,6 +854,7 @@ def audit_params(
         gtm tag audit-params
         gtm tag audit-params 298 302 303 313
         gtm tag audit-params --folder tiktok
+        gtm tag audit-params --folder tiktok --folder facebook
     """
     ctx = resolve_workspace_context()
 
@@ -881,11 +866,14 @@ def audit_params(
         tag_id_set = set(tag_ids)
         tags = [t for t in tags if t.get("tagId", "") in tag_id_set]
     if folder:
-        folder_lower = folder.lower()
+        folder_lowers = [f.lower() for f in folder]
         tags = [
             t
             for t in tags
-            if folder_lower in folder_names.get(t.get("parentFolderId", ""), "").lower()
+            if any(
+                fl in folder_names.get(t.get("parentFolderId", ""), "").lower()
+                for fl in folder_lowers
+            )
         ]
 
     # Only Custom HTML tags have parseable JS
@@ -1020,17 +1008,17 @@ def compare_tags(
         print_warning("Need at least 2 tags to compare")
         raise typer.Exit(0)
 
-    # Extract comparison data for each tag
+    # Extract comparison data for each tag (keyed by tag_id to handle duplicate names)
     comparison: list[dict[str, str]] = []
     all_params: set[str] = set()
-    tag_events: dict[str, list[dict[str, str]]] = {}
+    tag_parsed: dict[str, tuple[list[dict[str, str]], list[dict[str, str]]]] = {}
 
     for tag in tags_to_compare:
-        tag_name = tag.get("name", "")
+        tag_id = tag.get("tagId", "")
         html = _get_tag_html(tag)
         events = _extract_event_calls(html) if html else []
         pixels = _detect_pixels(html) if html else []
-        tag_events[tag_name] = events
+        tag_parsed[tag_id] = (events, pixels)
         for ev in events:
             if ev["params"] != "(none)":
                 all_params.update(p.strip() for p in ev["params"].split(","))
@@ -1039,9 +1027,7 @@ def compare_tags(
     for tag in tags_to_compare:
         tag_name = tag.get("name", "")
         tag_id = tag.get("tagId", "")
-        html = _get_tag_html(tag)
-        events = tag_events.get(tag_name, [])
-        pixels = _detect_pixels(html) if html else []
+        events, pixels = tag_parsed.get(tag_id, ([], []))
         trigger_list = _get_firing_trigger_names(tag, trigger_names)
         tag_folder = folder_names.get(tag.get("parentFolderId", ""), "-")
 

@@ -538,6 +538,24 @@ class TestAuditSetupDeps:
         assert "1 broken" in result.output
         assert "not found" in result.output
 
+    def test_paused_teardown_tag(self, mock_ctx):
+        """Tag referencing a paused teardownTag is flagged with correct dep_type."""
+        mock_ctx.client.list_tags.return_value = [
+            {"tagId": "400", "name": "Cleanup Tag", "paused": True},
+            {
+                "tagId": "401",
+                "name": "Main Tag",
+                "teardownTag": [{"tagName": "400", "stopTeardownOnFailure": False}],
+            },
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "audit-setup-deps"])
+
+        assert result.exit_code == 0, result.output
+        assert "1 broken" in result.output
+        assert "teardown" in result.output.lower()
+
 
 # ---------------------------------------------------------------------------
 # compare
