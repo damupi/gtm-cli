@@ -234,15 +234,22 @@ def list_tags(
 @app.command("search")
 def search_tags(
     query: Annotated[
-        str,
+        str | None,
         typer.Argument(help="Search query (matches tag name, case-insensitive)"),
-    ],
+    ] = None,
     tag_type: Annotated[
         str | None,
         typer.Option(
             "--type",
             "-t",
             help="Filter by tag type (e.g. html, googtag, awct)",
+        ),
+    ] = None,
+    trigger: Annotated[
+        str | None,
+        typer.Option(
+            "--trigger",
+            help="Filter by trigger ID or trigger name (substring match)",
         ),
     ] = None,
     exclude_paused: Annotated[
@@ -253,36 +260,72 @@ def search_tags(
         ),
     ] = False,
 ) -> None:
-    """Search tags by name or type.
+    """Search tags by name, type, or trigger.
 
     Case-insensitive substring match on tag names.
-    Optionally filter by tag type with --type.
+    Optionally filter by tag type with --type or by trigger with --trigger.
 
     Examples:
         gtm tag search tiktok
         gtm tag search pixel --type html
-        gtm tag search facebook --type html
+        gtm tag search --trigger 62
+        gtm tag search --trigger "Booking"
     """
+    if not query and not tag_type and not trigger:
+        print_error("Provide a search query, --type, or --trigger")
+        raise typer.Exit(1)
+
     ctx = resolve_workspace_context()
 
     tags = ctx.client.list_tags(**ctx.api_kwargs)
+    folder_names, trigger_names = _build_tag_lookups(ctx)
 
-    query_lower = query.lower()
+    # Build reverse lookup: trigger_id -> trigger_name (already have trigger_names)
+    # Also build trigger name -> trigger_id for name-based search
+    trigger_ids_for_filter: set[str] | None = None
+    if trigger:
+        trigger_ids_for_filter = set()
+        trigger_lower = trigger.lower()
+        # Check if it's a numeric trigger ID
+        if trigger.isdigit() and trigger in trigger_names:
+            trigger_ids_for_filter.add(trigger)
+        else:
+            # Substring match on trigger names
+            for tid, tname in trigger_names.items():
+                if trigger_lower in tname.lower():
+                    trigger_ids_for_filter.add(tid)
+            # Also check if numeric ID matches even if not in trigger_names
+            if trigger.isdigit():
+                trigger_ids_for_filter.add(trigger)
+
+        if not trigger_ids_for_filter:
+            print_warning(f"No triggers matching '{trigger}'")
+            raise typer.Exit(0)
+
+    query_lower = query.lower() if query else None
     type_lower = tag_type.lower() if tag_type else None
 
-    matched = [
-        t
-        for t in tags
-        if query_lower in t.get("name", "").lower()
-        and (type_lower is None or type_lower == t.get("type", "").lower())
-        and (not exclude_paused or not t.get("paused"))
-    ]
+    matched = []
+    for t in tags:
+        if query_lower and query_lower not in t.get("name", "").lower():
+            continue
+        if type_lower and type_lower != t.get("type", "").lower():
+            continue
+        if exclude_paused and t.get("paused"):
+            continue
+        if trigger_ids_for_filter is not None:
+            tag_trigger_ids = set(t.get("firingTriggerId", []))
+            if not tag_trigger_ids & trigger_ids_for_filter:
+                continue
+        matched.append(t)
+
+    search_desc = query or ""
+    if trigger:
+        search_desc += f" trigger={trigger}" if search_desc else f"trigger={trigger}"
 
     if not matched:
-        print_warning(f"No tags matching '{query}'" + (f" (type={tag_type})" if tag_type else ""))
+        print_warning(f"No tags matching '{search_desc}'" + (f" (type={tag_type})" if tag_type else ""))
         raise typer.Exit(0)
-
-    folder_names, trigger_names = _build_tag_lookups(ctx)
 
     data = [
         {
@@ -296,24 +339,46 @@ def search_tags(
         for t in matched
     ]
 
-    print_success(f"Found {len(matched)} tag(s) matching '{query}':")
-    output(data, fmt=ctx.state.output_format, title=f"Search: {query}")
+    print_success(f"Found {len(matched)} tag(s) matching '{search_desc}':")
+    output(data, fmt=ctx.state.output_format, title=f"Search: {search_desc}")
 
 
 @app.command("get")
 def get_tag(
-    tag_id: Annotated[str, typer.Argument(help="Tag ID")],
+    tag_ids: Annotated[list[str], typer.Argument(help="Tag ID(s) to retrieve")],
 ) -> None:
-    """Get details of a specific tag."""
+    """Get details of one or more tags.
+
+    Examples:
+        gtm tag get 298
+        gtm tag get 298 302 303 313
+        gtm tag get 298 302 --format json
+    """
     ctx = resolve_workspace_context()
 
-    try:
-        tag = ctx.client.get_tag(tag_id=tag_id, **ctx.api_kwargs)
-    except ResourceNotFoundError:
-        print_error(f"Tag '{tag_id}' not found")
-        raise typer.Exit(1) from None
+    if len(tag_ids) == 1:
+        try:
+            tag = ctx.client.get_tag(tag_id=tag_ids[0], **ctx.api_kwargs)
+        except ResourceNotFoundError:
+            print_error(f"Tag '{tag_ids[0]}' not found")
+            raise typer.Exit(1) from None
+        output(tag, fmt=ctx.state.output_format)
+        return
 
-    output(tag, fmt=ctx.state.output_format)
+    results: list[dict[str, Any]] = []
+    failures = 0
+    for tid in tag_ids:
+        try:
+            tag = ctx.client.get_tag(tag_id=tid, **ctx.api_kwargs)
+            results.append(tag)
+        except ResourceNotFoundError:
+            print_error(f"Tag '{tid}' not found")
+            failures += 1
+
+    if results:
+        output(results, fmt=ctx.state.output_format)
+    if failures:
+        raise typer.Exit(1)
 
 
 @app.command("audit-consent")
@@ -589,6 +654,103 @@ def audit_pixels(
         print("Detected pixels:")
         for key, tag_list in pixel_map.items():
             print(f"  {key} -> {', '.join(tag_list)}")
+
+
+@app.command("audit-setup-deps")
+def audit_setup_deps() -> None:
+    """Audit tags for broken setup tag dependencies.
+
+    Finds tags that reference paused or missing setupTags. A setupTag dependency
+    on a paused tag is a silent failure -- the dependent tag may not work correctly.
+
+    Tip: Use --authuser N global option to append authuser parameter to URLs.
+    """
+    ctx = resolve_workspace_context()
+
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
+
+    # Build tag lookup: tag_id -> tag dict
+    tag_map: dict[str, dict[str, Any]] = {t.get("tagId", ""): t for t in tags}
+
+    issues: list[dict[str, str]] = []
+
+    for tag in tags:
+        tag_name = tag.get("name", "")
+        tag_id = tag.get("tagId", "")
+        tag_url = add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser)
+
+        for setup_ref in tag.get("setupTag", []):
+            setup_id = setup_ref.get("tagName", "")
+            stop_on_failure = setup_ref.get("stopOnSetupFailure", False)
+
+            setup_tag = tag_map.get(setup_id)
+            if setup_tag is None:
+                issues.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "setup_tag_id": setup_id,
+                        "setup_tag_name": "(missing)",
+                        "issue": "setup tag not found",
+                        "stop_on_failure": "yes" if stop_on_failure else "no",
+                        "url": tag_url,
+                    }
+                )
+            elif setup_tag.get("paused"):
+                issues.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "setup_tag_id": setup_id,
+                        "setup_tag_name": setup_tag.get("name", ""),
+                        "issue": "setup tag is PAUSED",
+                        "stop_on_failure": "yes" if stop_on_failure else "no",
+                        "url": tag_url,
+                    }
+                )
+
+        # Also check teardownTag references
+        for teardown_ref in tag.get("teardownTag", []):
+            teardown_id = teardown_ref.get("tagName", "")
+            stop_on_failure = teardown_ref.get("stopTeardownOnFailure", False)
+
+            teardown_tag = tag_map.get(teardown_id)
+            if teardown_tag is None:
+                issues.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "setup_tag_id": teardown_id,
+                        "setup_tag_name": "(missing)",
+                        "issue": "teardown tag not found",
+                        "stop_on_failure": "yes" if stop_on_failure else "no",
+                        "url": tag_url,
+                    }
+                )
+            elif teardown_tag.get("paused"):
+                issues.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "setup_tag_id": teardown_id,
+                        "setup_tag_name": teardown_tag.get("name", ""),
+                        "issue": "teardown tag is PAUSED",
+                        "stop_on_failure": "yes" if stop_on_failure else "no",
+                        "url": tag_url,
+                    }
+                )
+
+    if not issues:
+        print_success("No broken setup/teardown tag dependencies found.")
+        raise typer.Exit(0)
+
+    print_warning(f"Found {len(issues)} broken setup/teardown dependency(ies):")
+    output(
+        issues,
+        fmt=ctx.state.output_format,
+        columns=["tag", "tag_id", "setup_tag_name", "setup_tag_id", "issue", "stop_on_failure", "url"],
+        title="Broken Setup/Teardown Dependencies",
+    )
 
 
 @app.command("create")
