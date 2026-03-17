@@ -120,6 +120,80 @@ def _detect_pixels(html: str) -> list[dict[str, str]]:
     return found
 
 
+# Event call patterns: (provider, regex to extract event name + params object)
+# These match calls like ttq.track('ViewContent', {content_type: 'product'})
+_EVENT_CALL_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    (
+        "TikTok",
+        re.compile(
+            r"""ttq\.track\(\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Meta/Facebook",
+        re.compile(
+            r"""fbq\(\s*['"]track(?:Custom)?['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Google Ads",
+        re.compile(
+            r"""gtag\(\s*['"]event['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Snapchat",
+        re.compile(
+            r"""snaptr\(\s*['"]track['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Pinterest",
+        re.compile(
+            r"""pintrk\(\s*['"]track['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+    (
+        "Twitter/X",
+        re.compile(
+            r"""twq\(\s*['"]track['"]\s*,\s*['"](\w+)['"]\s*(?:,\s*(\{[^}]*\}))?\s*\)""",
+            re.DOTALL,
+        ),
+    ),
+]
+
+# Regex to extract keys from a JS object literal: {key1: val, key2: val}
+_JS_OBJECT_KEY_RE = re.compile(r"""(?:['"]?(\w+)['"]?)\s*:""")
+
+
+def _extract_event_calls(html: str) -> list[dict[str, str]]:
+    """Extract event tracking calls from HTML content.
+
+    Returns list of dicts with: provider, event, params (comma-separated param names).
+    """
+    events: list[dict[str, str]] = []
+    for provider, pattern in _EVENT_CALL_PATTERNS:
+        for match in pattern.finditer(html):
+            event_name = match.group(1)
+            params_obj = match.group(2) if match.lastindex and match.lastindex >= 2 else None
+            param_names: list[str] = []
+            if params_obj:
+                param_names = _JS_OBJECT_KEY_RE.findall(params_obj)
+            events.append(
+                {
+                    "provider": provider,
+                    "event": event_name,
+                    "params": ", ".join(param_names) if param_names else "(none)",
+                }
+            )
+    return events
+
+
 def _is_all_pages_trigger(trigger_name: str) -> bool:
     """Check if a trigger name looks like an all-pages trigger (heuristic, substring match)."""
     normalized = trigger_name.lower().strip()
@@ -234,15 +308,22 @@ def list_tags(
 @app.command("search")
 def search_tags(
     query: Annotated[
-        str,
+        str | None,
         typer.Argument(help="Search query (matches tag name, case-insensitive)"),
-    ],
+    ] = None,
     tag_type: Annotated[
         str | None,
         typer.Option(
             "--type",
             "-t",
             help="Filter by tag type (e.g. html, googtag, awct)",
+        ),
+    ] = None,
+    trigger: Annotated[
+        str | None,
+        typer.Option(
+            "--trigger",
+            help="Filter by trigger ID or trigger name (substring match)",
         ),
     ] = None,
     exclude_paused: Annotated[
@@ -253,36 +334,72 @@ def search_tags(
         ),
     ] = False,
 ) -> None:
-    """Search tags by name or type.
+    """Search tags by name, type, or trigger.
 
     Case-insensitive substring match on tag names.
-    Optionally filter by tag type with --type.
+    Optionally filter by tag type with --type or by trigger with --trigger.
 
     Examples:
         gtm tag search tiktok
         gtm tag search pixel --type html
-        gtm tag search facebook --type html
+        gtm tag search --trigger 62
+        gtm tag search --trigger "Booking"
     """
+    if not query and not tag_type and not trigger:
+        print_error("Provide a search query, --type, or --trigger")
+        raise typer.Exit(1)
+
     ctx = resolve_workspace_context()
 
     tags = ctx.client.list_tags(**ctx.api_kwargs)
+    folder_names, trigger_names = _build_tag_lookups(ctx)
 
-    query_lower = query.lower()
+    # Build reverse lookup: trigger_id -> trigger_name (already have trigger_names)
+    # Also build trigger name -> trigger_id for name-based search
+    trigger_ids_for_filter: set[str] | None = None
+    if trigger:
+        trigger_ids_for_filter = set()
+        trigger_lower = trigger.lower()
+        # Check if it's a numeric trigger ID
+        if trigger.isdigit() and trigger in trigger_names:
+            trigger_ids_for_filter.add(trigger)
+        else:
+            # Substring match on trigger names
+            for tid, tname in trigger_names.items():
+                if trigger_lower in tname.lower():
+                    trigger_ids_for_filter.add(tid)
+            # Also check if numeric ID matches even if not in trigger_names
+            if trigger.isdigit():
+                trigger_ids_for_filter.add(trigger)
+
+        if not trigger_ids_for_filter:
+            print_warning(f"No triggers matching '{trigger}'")
+            raise typer.Exit(0)
+
+    query_lower = query.lower() if query else None
     type_lower = tag_type.lower() if tag_type else None
 
-    matched = [
-        t
-        for t in tags
-        if query_lower in t.get("name", "").lower()
-        and (type_lower is None or type_lower == t.get("type", "").lower())
-        and (not exclude_paused or not t.get("paused"))
-    ]
+    matched = []
+    for t in tags:
+        if query_lower and query_lower not in t.get("name", "").lower():
+            continue
+        if type_lower and type_lower != t.get("type", "").lower():
+            continue
+        if exclude_paused and t.get("paused"):
+            continue
+        if trigger_ids_for_filter is not None:
+            tag_trigger_ids = set(t.get("firingTriggerId", []))
+            if not tag_trigger_ids & trigger_ids_for_filter:
+                continue
+        matched.append(t)
+
+    search_desc = query or ""
+    if trigger:
+        search_desc += f" trigger={trigger}" if search_desc else f"trigger={trigger}"
 
     if not matched:
-        print_warning(f"No tags matching '{query}'" + (f" (type={tag_type})" if tag_type else ""))
+        print_warning(f"No tags matching '{search_desc}'" + (f" (type={tag_type})" if tag_type else ""))
         raise typer.Exit(0)
-
-    folder_names, trigger_names = _build_tag_lookups(ctx)
 
     data = [
         {
@@ -296,24 +413,46 @@ def search_tags(
         for t in matched
     ]
 
-    print_success(f"Found {len(matched)} tag(s) matching '{query}':")
-    output(data, fmt=ctx.state.output_format, title=f"Search: {query}")
+    print_success(f"Found {len(matched)} tag(s) matching '{search_desc}':")
+    output(data, fmt=ctx.state.output_format, title=f"Search: {search_desc}")
 
 
 @app.command("get")
 def get_tag(
-    tag_id: Annotated[str, typer.Argument(help="Tag ID")],
+    tag_ids: Annotated[list[str], typer.Argument(help="Tag ID(s) to retrieve")],
 ) -> None:
-    """Get details of a specific tag."""
+    """Get details of one or more tags.
+
+    Examples:
+        gtm tag get 298
+        gtm tag get 298 302 303 313
+        gtm tag get 298 302 --format json
+    """
     ctx = resolve_workspace_context()
 
-    try:
-        tag = ctx.client.get_tag(tag_id=tag_id, **ctx.api_kwargs)
-    except ResourceNotFoundError:
-        print_error(f"Tag '{tag_id}' not found")
-        raise typer.Exit(1) from None
+    if len(tag_ids) == 1:
+        try:
+            tag = ctx.client.get_tag(tag_id=tag_ids[0], **ctx.api_kwargs)
+        except ResourceNotFoundError:
+            print_error(f"Tag '{tag_ids[0]}' not found")
+            raise typer.Exit(1) from None
+        output(tag, fmt=ctx.state.output_format)
+        return
 
-    output(tag, fmt=ctx.state.output_format)
+    results: list[dict[str, Any]] = []
+    failures = 0
+    for tid in tag_ids:
+        try:
+            tag = ctx.client.get_tag(tag_id=tid, **ctx.api_kwargs)
+            results.append(tag)
+        except ResourceNotFoundError:
+            print_error(f"Tag '{tid}' not found")
+            failures += 1
+
+    if results:
+        output(results, fmt=ctx.state.output_format)
+    if failures:
+        raise typer.Exit(1)
 
 
 @app.command("audit-consent")
@@ -410,6 +549,13 @@ def audit_pixels(
             help="Show the raw HTML content of each tag",
         ),
     ] = False,
+    show_params: Annotated[
+        bool,
+        typer.Option(
+            "--params",
+            help="Show event parameters sent by each pixel tag",
+        ),
+    ] = False,
 ) -> None:
     """Audit pixel and script tags for loading issues.
 
@@ -498,6 +644,14 @@ def audit_pixels(
             status = "async" if sf["async"] == "yes" else "SYNC"
             async_summary.append(f"{sf.get('method', 'static')}:{status}")
 
+        # Extract event params if requested
+        event_params_summary = ""
+        if show_params:
+            events = _extract_event_calls(html)
+            if events:
+                parts = [f"{e['event']}({e['params']})" for e in events]
+                event_params_summary = "; ".join(parts)
+
         detail: dict[str, Any] = {
             "name": name,
             "id": tag.get("tagId", ""),
@@ -506,6 +660,8 @@ def audit_pixels(
             "loading": ", ".join(async_summary) if async_summary else "no external scripts",
             "paused": "paused" if tag.get("paused") else "",
         }
+        if show_params:
+            detail["events"] = event_params_summary or "-"
         if show_html:
             detail["html"] = html
         tag_details.append(detail)
@@ -570,6 +726,8 @@ def audit_pixels(
     if tag_details:
         print(f"\n--- Custom HTML Tags ({len(tag_details)}) ---")
         columns = ["name", "id", "triggers", "pixels", "loading", "paused"]
+        if show_params:
+            columns.insert(-1, "events")
         if show_html:
             columns.append("html")
         output(
@@ -589,6 +747,341 @@ def audit_pixels(
         print("Detected pixels:")
         for key, tag_list in pixel_map.items():
             print(f"  {key} -> {', '.join(tag_list)}")
+
+
+@app.command("audit-setup-deps")
+def audit_setup_deps() -> None:
+    """Audit tags for broken setup tag dependencies.
+
+    Finds tags that reference paused or missing setupTags. A setupTag dependency
+    on a paused tag is a silent failure -- the dependent tag may not work correctly.
+
+    Tip: Use --authuser N global option to append authuser parameter to URLs.
+    """
+    ctx = resolve_workspace_context()
+
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
+
+    # Build tag lookup: tag_id -> tag dict
+    tag_map: dict[str, dict[str, Any]] = {t.get("tagId", ""): t for t in tags}
+
+    issues: list[dict[str, str]] = []
+
+    for tag in tags:
+        tag_name = tag.get("name", "")
+        tag_id = tag.get("tagId", "")
+        tag_url = add_authuser(tag.get("tagManagerUrl", ""), ctx.state.authuser)
+
+        for setup_ref in tag.get("setupTag", []):
+            setup_id = setup_ref.get("tagName", "")
+            stop_on_failure = setup_ref.get("stopOnSetupFailure", False)
+
+            setup_tag = tag_map.get(setup_id)
+            if setup_tag is None:
+                issues.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "setup_tag_id": setup_id,
+                        "setup_tag_name": "(missing)",
+                        "issue": "setup tag not found",
+                        "stop_on_failure": "yes" if stop_on_failure else "no",
+                        "url": tag_url,
+                    }
+                )
+            elif setup_tag.get("paused"):
+                issues.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "setup_tag_id": setup_id,
+                        "setup_tag_name": setup_tag.get("name", ""),
+                        "issue": "setup tag is PAUSED",
+                        "stop_on_failure": "yes" if stop_on_failure else "no",
+                        "url": tag_url,
+                    }
+                )
+
+        # Also check teardownTag references
+        for teardown_ref in tag.get("teardownTag", []):
+            teardown_id = teardown_ref.get("tagName", "")
+            stop_on_failure = teardown_ref.get("stopTeardownOnFailure", False)
+
+            teardown_tag = tag_map.get(teardown_id)
+            if teardown_tag is None:
+                issues.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "setup_tag_id": teardown_id,
+                        "setup_tag_name": "(missing)",
+                        "issue": "teardown tag not found",
+                        "stop_on_failure": "yes" if stop_on_failure else "no",
+                        "url": tag_url,
+                    }
+                )
+            elif teardown_tag.get("paused"):
+                issues.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "setup_tag_id": teardown_id,
+                        "setup_tag_name": teardown_tag.get("name", ""),
+                        "issue": "teardown tag is PAUSED",
+                        "stop_on_failure": "yes" if stop_on_failure else "no",
+                        "url": tag_url,
+                    }
+                )
+
+    if not issues:
+        print_success("No broken setup/teardown tag dependencies found.")
+        raise typer.Exit(0)
+
+    print_warning(f"Found {len(issues)} broken setup/teardown dependency(ies):")
+    output(
+        issues,
+        fmt=ctx.state.output_format,
+        columns=["tag", "tag_id", "setup_tag_name", "setup_tag_id", "issue", "stop_on_failure", "url"],
+        title="Broken Setup/Teardown Dependencies",
+    )
+
+
+@app.command("audit-params")
+def audit_params(
+    tag_ids: Annotated[
+        list[str] | None,
+        typer.Argument(help="Specific tag IDs to audit (default: all)"),
+    ] = None,
+    folder: Annotated[
+        str | None,
+        typer.Option(
+            "--folder",
+            help="Filter by folder name (substring match)",
+        ),
+    ] = None,
+) -> None:
+    """Audit event parameters sent by pixel/tracking tags.
+
+    Parses JavaScript in Custom HTML tags to extract event tracking calls
+    (ttq.track, fbq, gtag, snaptr, pintrk, twq) and shows which parameters
+    each tag sends.
+
+    Examples:
+        gtm tag audit-params
+        gtm tag audit-params 298 302 303 313
+        gtm tag audit-params --folder tiktok
+    """
+    ctx = resolve_workspace_context()
+
+    tags = ctx.client.list_tags(**ctx.api_kwargs)
+    folder_names, _ = _build_tag_lookups(ctx)
+
+    # Filter to specific tags or folder
+    if tag_ids:
+        tag_id_set = set(tag_ids)
+        tags = [t for t in tags if t.get("tagId", "") in tag_id_set]
+    if folder:
+        folder_lower = folder.lower()
+        tags = [
+            t
+            for t in tags
+            if folder_lower in folder_names.get(t.get("parentFolderId", ""), "").lower()
+        ]
+
+    # Only Custom HTML tags have parseable JS
+    html_tags = [t for t in tags if t.get("type") == "html"]
+
+    if not html_tags:
+        print_info("No Custom HTML tags found matching the criteria.")
+        raise typer.Exit(0)
+
+    data: list[dict[str, str]] = []
+    for tag in html_tags:
+        html = _get_tag_html(tag)
+        if not html:
+            continue
+        events = _extract_event_calls(html)
+        tag_name = tag.get("name", "")
+        tag_id = tag.get("tagId", "")
+        tag_folder = folder_names.get(tag.get("parentFolderId", ""), "-")
+
+        if events:
+            for ev in events:
+                data.append(
+                    {
+                        "tag": tag_name,
+                        "tag_id": tag_id,
+                        "folder": tag_folder,
+                        "provider": ev["provider"],
+                        "event": ev["event"],
+                        "params": ev["params"],
+                    }
+                )
+        else:
+            # Tag has HTML but no recognized event calls
+            pixels = _detect_pixels(html)
+            if pixels:
+                for p in pixels:
+                    data.append(
+                        {
+                            "tag": tag_name,
+                            "tag_id": tag_id,
+                            "folder": tag_folder,
+                            "provider": p["provider"],
+                            "event": "(init only)",
+                            "params": "(none)",
+                        }
+                    )
+
+    if not data:
+        print_info("No event tracking calls found in the matched tags.")
+        raise typer.Exit(0)
+
+    print_success(f"Found {len(data)} event call(s) across {len(html_tags)} tag(s):")
+    output(
+        data,
+        fmt=ctx.state.output_format,
+        columns=["tag", "tag_id", "folder", "provider", "event", "params"],
+        title="Event Parameter Audit",
+    )
+
+
+@app.command("compare")
+def compare_tags(
+    tag_ids: Annotated[
+        list[str] | None,
+        typer.Argument(help="Tag IDs to compare (2 or more)"),
+    ] = None,
+    trigger: Annotated[
+        str | None,
+        typer.Option(
+            "--trigger",
+            help="Compare all tags sharing this trigger ID",
+        ),
+    ] = None,
+    folder: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--folder",
+            help="Compare tags across folders (repeatable, substring match)",
+        ),
+    ] = None,
+) -> None:
+    """Compare tags side by side, highlighting differences.
+
+    Compare specific tags by ID, all tags on a trigger, or tags across folders.
+
+    Examples:
+        gtm tag compare 298 17
+        gtm tag compare --trigger 3
+        gtm tag compare --folder tiktok --folder facebook
+    """
+    if not tag_ids and not trigger and not folder:
+        print_error("Provide tag IDs, --trigger, or --folder to compare")
+        raise typer.Exit(1)
+
+    ctx = resolve_workspace_context()
+
+    all_tags = ctx.client.list_tags(**ctx.api_kwargs)
+    folder_names, trigger_names = _build_tag_lookups(ctx)
+
+    # Resolve which tags to compare
+    tags_to_compare: list[dict[str, Any]] = []
+
+    if tag_ids:
+        tag_map = {t.get("tagId", ""): t for t in all_tags}
+        for tid in tag_ids:
+            if tid in tag_map:
+                tags_to_compare.append(tag_map[tid])
+            else:
+                print_error(f"Tag '{tid}' not found")
+                raise typer.Exit(1)
+
+    elif trigger:
+        for t in all_tags:
+            if trigger in t.get("firingTriggerId", []):
+                tags_to_compare.append(t)
+        if not tags_to_compare:
+            trigger_label = trigger_names.get(trigger, trigger)
+            print_warning(f"No tags found on trigger '{trigger_label}' (ID: {trigger})")
+            raise typer.Exit(0)
+
+    elif folder:
+        folder_lowers = [f.lower() for f in folder]
+        for t in all_tags:
+            tag_folder = folder_names.get(t.get("parentFolderId", ""), "")
+            if any(fl in tag_folder.lower() for fl in folder_lowers):
+                tags_to_compare.append(t)
+        if not tags_to_compare:
+            print_warning(f"No tags found in folders matching: {', '.join(folder)}")
+            raise typer.Exit(0)
+
+    if len(tags_to_compare) < 2:
+        print_warning("Need at least 2 tags to compare")
+        raise typer.Exit(0)
+
+    # Extract comparison data for each tag
+    comparison: list[dict[str, str]] = []
+    all_params: set[str] = set()
+    tag_events: dict[str, list[dict[str, str]]] = {}
+
+    for tag in tags_to_compare:
+        tag_name = tag.get("name", "")
+        html = _get_tag_html(tag)
+        events = _extract_event_calls(html) if html else []
+        pixels = _detect_pixels(html) if html else []
+        tag_events[tag_name] = events
+        for ev in events:
+            if ev["params"] != "(none)":
+                all_params.update(p.strip() for p in ev["params"].split(","))
+
+    # Build comparison table
+    for tag in tags_to_compare:
+        tag_name = tag.get("name", "")
+        tag_id = tag.get("tagId", "")
+        html = _get_tag_html(tag)
+        events = tag_events.get(tag_name, [])
+        pixels = _detect_pixels(html) if html else []
+        trigger_list = _get_firing_trigger_names(tag, trigger_names)
+        tag_folder = folder_names.get(tag.get("parentFolderId", ""), "-")
+
+        event_summary = ", ".join(f"{e['event']}" for e in events) or "-"
+        pixel_summary = ", ".join(f"{p['provider']}" for p in pixels) or "-"
+
+        # Collect params this tag sends
+        tag_params: set[str] = set()
+        for ev in events:
+            if ev["params"] != "(none)":
+                tag_params.update(p.strip() for p in ev["params"].split(","))
+
+        row: dict[str, str] = {
+            "tag": tag_name,
+            "tag_id": tag_id,
+            "folder": tag_folder,
+            "type": tag.get("type", ""),
+            "triggers": trigger_list,
+            "pixels": pixel_summary,
+            "events": event_summary,
+            "paused": "paused" if tag.get("paused") else "",
+        }
+
+        # Add param columns
+        for param in sorted(all_params):
+            row[param] = "✓" if param in tag_params else "-"
+
+        comparison.append(row)
+
+    # Build columns list
+    columns = ["tag", "tag_id", "folder", "type", "triggers", "pixels", "events", "paused"]
+    columns.extend(sorted(all_params))
+
+    print_success(f"Comparing {len(tags_to_compare)} tags:")
+    output(
+        comparison,
+        fmt=ctx.state.output_format,
+        columns=columns,
+        title="Tag Comparison",
+    )
 
 
 @app.command("create")

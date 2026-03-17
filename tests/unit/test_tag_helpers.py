@@ -6,6 +6,7 @@ from gtm_cli.cli.helpers import add_authuser
 from gtm_cli.cli.tags import (
     _check_async_loading,
     _detect_pixels,
+    _extract_event_calls,
     _get_firing_trigger_names,
     _is_all_pages_trigger,
 )
@@ -168,3 +169,50 @@ class TestIsAllPagesTrigger:
     )
     def test_non_matches(self, name):
         assert _is_all_pages_trigger(name) is False
+
+
+class TestExtractEventCalls:
+    def test_tiktok_track(self):
+        html = """ttq.track('ViewContent', {content_type: 'product', content_id: '1234'});"""
+        result = _extract_event_calls(html)
+        assert len(result) == 1
+        assert result[0]["provider"] == "TikTok"
+        assert result[0]["event"] == "ViewContent"
+        assert "content_type" in result[0]["params"]
+        assert "content_id" in result[0]["params"]
+
+    def test_facebook_track(self):
+        html = """fbq('track', 'Purchase', {value: '10.00', currency: 'USD'});"""
+        result = _extract_event_calls(html)
+        assert len(result) == 1
+        assert result[0]["provider"] == "Meta/Facebook"
+        assert result[0]["event"] == "Purchase"
+        assert "value" in result[0]["params"]
+        assert "currency" in result[0]["params"]
+
+    def test_google_event(self):
+        html = """gtag('event', 'conversion', {send_to: 'AW-123/abc'});"""
+        result = _extract_event_calls(html)
+        assert len(result) == 1
+        assert result[0]["provider"] == "Google Ads"
+        assert result[0]["event"] == "conversion"
+
+    def test_no_params(self):
+        html = """ttq.track('PageView');"""
+        result = _extract_event_calls(html)
+        assert len(result) == 1
+        assert result[0]["params"] == "(none)"
+
+    def test_no_event_calls(self):
+        html = """console.log('hello');"""
+        assert _extract_event_calls(html) == []
+
+    def test_multiple_providers(self):
+        html = """
+        ttq.track('ViewContent', {content_type: 'product'});
+        fbq('track', 'ViewContent', {content_name: 'shoes'});
+        """
+        result = _extract_event_calls(html)
+        assert len(result) == 2
+        providers = {r["provider"] for r in result}
+        assert providers == {"TikTok", "Meta/Facebook"}

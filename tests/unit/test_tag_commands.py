@@ -365,3 +365,240 @@ class TestPauseUnpause:
 
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# get (multi-ID)
+# ---------------------------------------------------------------------------
+
+
+class TestGetTag:
+    def test_get_single_tag(self, mock_ctx):
+        """Single tag ID returns that tag."""
+        mock_ctx.client.get_tag.return_value = {"tagId": "298", "name": "Test Tag"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "get", "298"])
+
+        assert result.exit_code == 0, result.output
+        mock_ctx.client.get_tag.assert_called_once()
+
+    def test_get_multiple_tags(self, mock_ctx):
+        """Multiple tag IDs returns all tags."""
+        mock_ctx.client.get_tag.side_effect = [
+            {"tagId": "298", "name": "Tag A"},
+            {"tagId": "302", "name": "Tag B"},
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "get", "298", "302"])
+
+        assert result.exit_code == 0, result.output
+        assert mock_ctx.client.get_tag.call_count == 2
+
+    def test_get_tag_not_found(self, mock_ctx):
+        """Non-existent tag ID exits with code 1."""
+        mock_ctx.client.get_tag.side_effect = ResourceNotFoundError("Tag", "get tag 999")
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "get", "999"])
+
+        assert result.exit_code == 1
+        assert "not found" in result.output.lower()
+
+    def test_get_multiple_partial_failure(self, mock_ctx):
+        """Some tags found, some not — still exits 1."""
+        mock_ctx.client.get_tag.side_effect = [
+            {"tagId": "298", "name": "Tag A"},
+            ResourceNotFoundError("Tag", "get tag 999"),
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "get", "298", "999"])
+
+        assert result.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# search (with --trigger)
+# ---------------------------------------------------------------------------
+
+
+_SAMPLE_TAGS = [
+    {"tagId": "1", "name": "TikTok ViewContent", "type": "html", "firingTriggerId": ["62"]},
+    {"tagId": "2", "name": "FB ViewContent", "type": "html", "firingTriggerId": ["62"]},
+    {"tagId": "3", "name": "TikTok Purchase", "type": "html", "firingTriggerId": ["70"]},
+]
+
+
+class TestSearchTags:
+    def test_search_by_trigger_id(self, mock_ctx):
+        """--trigger filters tags by trigger ID."""
+        mock_ctx.client.list_tags.return_value = _SAMPLE_TAGS
+        mock_ctx.client.list_folders.return_value = []
+        mock_ctx.client.list_triggers.return_value = [
+            {"triggerId": "62", "name": "Campsite detail"},
+            {"triggerId": "70", "name": "Booking"},
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "search", "--trigger", "62"])
+
+        assert result.exit_code == 0, result.output
+        assert "2 tag(s)" in result.output
+
+    def test_search_by_trigger_name(self, mock_ctx):
+        """--trigger with name substring matches triggers."""
+        mock_ctx.client.list_tags.return_value = _SAMPLE_TAGS
+        mock_ctx.client.list_folders.return_value = []
+        mock_ctx.client.list_triggers.return_value = [
+            {"triggerId": "62", "name": "Campsite detail"},
+            {"triggerId": "70", "name": "Booking"},
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "search", "--trigger", "Campsite"])
+
+        assert result.exit_code == 0, result.output
+        assert "2 tag(s)" in result.output
+
+    def test_search_requires_query_or_filter(self, mock_ctx):
+        """No query and no filter exits with error."""
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "search"])
+
+        assert result.exit_code == 1
+
+    def test_search_by_name_and_trigger(self, mock_ctx):
+        """Combining query and --trigger intersects results."""
+        mock_ctx.client.list_tags.return_value = _SAMPLE_TAGS
+        mock_ctx.client.list_folders.return_value = []
+        mock_ctx.client.list_triggers.return_value = [
+            {"triggerId": "62", "name": "Campsite detail"},
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "search", "TikTok", "--trigger", "62"])
+
+        assert result.exit_code == 0, result.output
+        assert "1 tag(s)" in result.output
+
+
+# ---------------------------------------------------------------------------
+# audit-setup-deps
+# ---------------------------------------------------------------------------
+
+
+class TestAuditSetupDeps:
+    def test_no_issues(self, mock_ctx):
+        """Clean tags with no setup deps reports success."""
+        mock_ctx.client.list_tags.return_value = [
+            {"tagId": "1", "name": "Tag A"},
+            {"tagId": "2", "name": "Tag B"},
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "audit-setup-deps"])
+
+        assert result.exit_code == 0, result.output
+        assert "No broken" in result.output
+
+    def test_paused_setup_tag(self, mock_ctx):
+        """Tag referencing a paused setupTag is flagged."""
+        mock_ctx.client.list_tags.return_value = [
+            {"tagId": "304", "name": "Base Pixel", "paused": True},
+            {
+                "tagId": "308",
+                "name": "Login Event",
+                "setupTag": [{"tagName": "304", "stopOnSetupFailure": True}],
+            },
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "audit-setup-deps"])
+
+        assert result.exit_code == 0, result.output
+        assert "1 broken" in result.output
+        assert "PAUSED" in result.output
+
+    def test_missing_setup_tag(self, mock_ctx):
+        """Tag referencing a non-existent setupTag is flagged."""
+        mock_ctx.client.list_tags.return_value = [
+            {
+                "tagId": "308",
+                "name": "Login Event",
+                "setupTag": [{"tagName": "999", "stopOnSetupFailure": False}],
+            },
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "audit-setup-deps"])
+
+        assert result.exit_code == 0, result.output
+        assert "1 broken" in result.output
+        assert "not found" in result.output
+
+
+# ---------------------------------------------------------------------------
+# compare
+# ---------------------------------------------------------------------------
+
+
+class TestCompareTags:
+    def test_compare_by_ids(self, mock_ctx):
+        """Compare two tags by ID shows comparison table."""
+        mock_ctx.client.list_tags.return_value = [
+            {
+                "tagId": "298",
+                "name": "TikTok VC",
+                "type": "html",
+                "firingTriggerId": ["62"],
+                "parameter": [
+                    {
+                        "key": "html",
+                        "value": "ttq.track('ViewContent', {content_type: 'product'});",
+                    }
+                ],
+            },
+            {
+                "tagId": "17",
+                "name": "FB VC",
+                "type": "html",
+                "firingTriggerId": ["62"],
+                "parameter": [
+                    {
+                        "key": "html",
+                        "value": "fbq('track', 'ViewContent', {content_name: 'test'});",
+                    }
+                ],
+            },
+        ]
+        mock_ctx.client.list_folders.return_value = []
+        mock_ctx.client.list_triggers.return_value = [{"triggerId": "62", "name": "Detail"}]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "compare", "298", "17"])
+
+        assert result.exit_code == 0, result.output
+        assert "Comparing 2 tags" in result.output
+
+    def test_compare_needs_two_tags(self, mock_ctx):
+        """Single tag can't be compared."""
+        mock_ctx.client.list_tags.return_value = [
+            {"tagId": "298", "name": "Tag A", "type": "html"},
+        ]
+        mock_ctx.client.list_folders.return_value = []
+        mock_ctx.client.list_triggers.return_value = []
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "compare", "298"])
+
+        assert result.exit_code == 0
+        assert "at least 2" in result.output.lower()
+
+    def test_compare_requires_args(self, mock_ctx):
+        """No arguments exits with error."""
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "compare"])
+
+        assert result.exit_code == 1
