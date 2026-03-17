@@ -556,6 +556,27 @@ class TestAuditSetupDeps:
         assert "1 broken" in result.output
         assert "teardown" in result.output.lower()
 
+    def test_both_setup_and_teardown_broken(self, mock_ctx):
+        """Tag with both broken setup and teardown reports 2 issues."""
+        mock_ctx.client.list_tags.return_value = [
+            {"tagId": "500", "name": "Setup Tag", "paused": True},
+            {"tagId": "501", "name": "Teardown Tag", "paused": True},
+            {
+                "tagId": "502",
+                "name": "Main Tag",
+                "setupTag": [{"tagName": "500", "stopOnSetupFailure": True}],
+                "teardownTag": [{"tagName": "501", "stopTeardownOnFailure": False}],
+            },
+        ]
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "audit-setup-deps"])
+
+        assert result.exit_code == 0, result.output
+        assert "2 broken" in result.output
+        assert "setup" in result.output.lower()
+        assert "teardown" in result.output.lower()
+
 
 # ---------------------------------------------------------------------------
 # compare

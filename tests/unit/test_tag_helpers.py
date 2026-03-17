@@ -216,3 +216,20 @@ class TestExtractEventCalls:
         assert len(result) == 2
         providers = {r["provider"] for r in result}
         assert providers == {"TikTok", "Meta/Facebook"}
+
+    def test_fbq_track_custom_hyphenated_event(self):
+        """fbq trackCustom with hyphenated event name is captured."""
+        html = """fbq('trackCustom', 'Add-To-Cart', {value: '29.99', currency: 'EUR'});"""
+        result = _extract_event_calls(html)
+        assert len(result) == 1
+        assert result[0]["provider"] == "Meta/Facebook"
+        assert result[0]["event"] == "Add-To-Cart"
+        assert "value" in result[0]["params"]
+        assert "currency" in result[0]["params"]
+
+    def test_fbq_track_custom_spaced_event(self):
+        """fbq trackCustom with spaced event name is captured."""
+        html = """fbq('trackCustom', 'Custom Signup Event', {method: 'email'});"""
+        result = _extract_event_calls(html)
+        assert len(result) == 1
+        assert result[0]["event"] == "Custom Signup Event"

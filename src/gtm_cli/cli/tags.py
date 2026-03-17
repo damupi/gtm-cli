@@ -168,7 +168,10 @@ _EVENT_CALL_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 # Regex to extract keys from a JS object literal: {key1: val, key2: val}
-# Only match keys at the start of the object or after a comma (avoids matching inside string values)
+# Only match keys at the start of the object or after a comma (avoids matching inside string values).
+# Known limitation: can still false-match if a string value contains a comma followed by a
+# colon-delimited token, e.g. {label: 'foo, bar: baz'} would extract both 'label' and 'bar'.
+# This is inherent to regex-based JS parsing; unlikely in real GTM pixel parameters.
 _JS_OBJECT_KEY_RE = re.compile(r"""(?:^|[{,])\s*['"]?(\w+)['"]?\s*:""")
 
 
@@ -361,17 +364,13 @@ def search_tags(
     if trigger:
         trigger_ids_for_filter = set()
         trigger_lower = trigger.lower()
-        # Check if it's a numeric trigger ID
-        if trigger.isdigit() and trigger in trigger_names:
+        # Always include numeric ID directly (handles both known and deleted triggers)
+        if trigger.isdigit():
             trigger_ids_for_filter.add(trigger)
-        else:
-            # Substring match on trigger names
-            for tid, tname in trigger_names.items():
-                if trigger_lower in tname.lower():
-                    trigger_ids_for_filter.add(tid)
-            # Also check if numeric ID matches even if not in trigger_names
-            if trigger.isdigit():
-                trigger_ids_for_filter.add(trigger)
+        # Also do substring match on trigger names
+        for tid, tname in trigger_names.items():
+            if trigger_lower in tname.lower():
+                trigger_ids_for_filter.add(tid)
 
         if not trigger_ids_for_filter:
             print_warning(f"No triggers matching '{trigger}'")
@@ -1031,7 +1030,7 @@ def compare_tags(
         trigger_list = _get_firing_trigger_names(tag, trigger_names)
         tag_folder = folder_names.get(tag.get("parentFolderId", ""), "-")
 
-        event_summary = ", ".join(f"{e['event']}" for e in events) or "-"
+        event_summary = ", ".join(e["event"] for e in events) or "-"
         pixel_summary = ", ".join(f"{p['provider']}" for p in pixels) or "-"
 
         # Collect params this tag sends
