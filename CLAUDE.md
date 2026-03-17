@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 gtm-cli is a Python CLI for Google Tag Manager API v2, built with Typer. It manages GTM accounts, containers, workspaces, tags, triggers, variables, and versions.
 
+See [README.md](README.md) for full command documentation, usage examples, and authentication setup.
+
 ## Commands
 
 ```bash
