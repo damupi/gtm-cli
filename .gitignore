@@ -91,3 +91,7 @@ credentials.json
 client_secrets.json
 token.json
 *.dat
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
