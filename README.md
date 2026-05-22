@@ -152,6 +152,18 @@ gtm trigger delete 312
 ### Workspace Management
 
 ```bash
+# List and inspect workspaces
+gtm workspace list
+gtm workspace get 1000815
+
+# Create a new workspace
+gtm workspace create --name "my-feature"
+gtm workspace create --name "my-feature" --description "Work for Q3 campaign"
+
+# Delete a workspace (prompts for confirmation unless --yes)
+gtm workspace delete --workspace-id 1000796 --container-id 8983761
+gtm workspace delete --workspace-id 1000796 --container-id 8983761 --yes
+
 # Show pending unpublished changes
 gtm workspace status
 gtm workspace status --detail     # Include consent settings info
@@ -237,9 +249,14 @@ gtm login --status
 # Login without opening browser (for headless/SSH environments)
 gtm login --no-browser
 
+# Login using OAuth2 client secrets instead of gcloud (bypasses gcloud auto-detection)
+gtm login --no-gcloud
+
 # Logout
 gtm logout
 ```
+
+> **Note:** By default `gtm login` uses gcloud if it is installed. If gcloud is unavailable or you prefer OAuth2 client secrets, use `--no-gcloud`. Place your client secrets file at `~/.config/gtm-cli/client_secrets.json` before running.
 
 ### Service Account (CI/CD)
 
@@ -284,6 +301,8 @@ Remember to grant the service account access in Tag Manager:
 | `gtm container get` | Get container details |
 | `gtm workspace list` | List workspaces |
 | `gtm workspace get` | Get workspace details |
+| `gtm workspace create` | Create a new workspace |
+| `gtm workspace delete` | Delete a workspace |
 | `gtm workspace status` | Show pending changes |
 | `gtm workspace publish` | Create version and publish |
 | `gtm workspace preview` | Open workspace preview in browser |
@@ -339,13 +358,15 @@ Configuration is stored in `~/.gtm-cli/`:
 
 ```
 ~/.gtm-cli/
-├── client_secrets.json   # OAuth2 client credentials
+├── client_secrets.json   # OAuth2 client credentials (default path)
 ├── config.yaml           # Global configuration
 ├── profiles/             # Named profiles
 │   └── default.yaml
 └── tokens/               # OAuth2 tokens (auto-managed)
     └── default.json
 ```
+
+You can also place the client secrets file at `~/.config/gtm-cli/client_secrets.json` if you prefer to follow the XDG convention used by other tools (e.g. gafour).
 
 ## Development
 

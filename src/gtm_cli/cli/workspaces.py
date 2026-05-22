@@ -321,6 +321,135 @@ def workspace_publish(
     )
 
 
+@app.command("create")
+def create_workspace(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Workspace name"),
+    ],
+    description: Annotated[
+        str | None,
+        typer.Option("--description", "-d", help="Workspace description"),
+    ] = None,
+    container_id: Annotated[
+        str | None,
+        typer.Option("--container-id", "-c", help="Container ID (overrides profile default)"),
+    ] = None,
+    account_id: Annotated[
+        str | None,
+        typer.Option("--account-id", "-a", help="Account ID (overrides profile default)"),
+    ] = None,
+) -> None:
+    """Create a new workspace in the container.
+
+    Examples:
+        gtm workspace create --name "My Feature"
+        gtm workspace create --name "My Feature" --description "Work for Q3 campaign"
+        gtm workspace create --container-id 8983761 --name "quick-picker"
+    """
+    state = get_state()
+    client = get_client()
+
+    # Allow per-command overrides without mutating global state
+    if account_id:
+        state.account_id = account_id
+    if container_id:
+        state.container_id = container_id
+
+    resolved_account_id = resolve_account_id(state, client)
+    resolved_container_id = resolve_container_id(state, client, resolved_account_id)
+
+    workspace = client.create_workspace(
+        account_id=resolved_account_id,
+        container_id=resolved_container_id,
+        name=name,
+        description=description,
+        profile_name=state.profile,
+        service_account_path=state.service_account,
+    )
+
+    workspace_id = workspace.get("workspaceId", "")
+    workspace_name = workspace.get("name", "")
+    print_success(f"Created workspace '{workspace_name}' (ID: {workspace_id})")
+    output(workspace, fmt=state.output_format)
+
+
+@app.command("delete")
+def delete_workspace(
+    workspace_id: Annotated[
+        str,
+        typer.Option("--workspace-id", "-w", help="Workspace ID to delete"),
+    ],
+    container_id: Annotated[
+        str | None,
+        typer.Option("--container-id", "-c", help="Container ID (overrides profile default)"),
+    ] = None,
+    account_id: Annotated[
+        str | None,
+        typer.Option("--account-id", "-a", help="Account ID (overrides profile default)"),
+    ] = None,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Skip confirmation prompt"),
+    ] = False,
+) -> None:
+    """Delete a workspace.
+
+    Requires confirmation unless --yes is passed. This action is irreversible.
+
+    Examples:
+        gtm workspace delete --workspace-id 1000796 --container-id 8983761
+        gtm workspace delete --workspace-id 1000796 --container-id 8983761 --yes
+    """
+    from gtm_cli.utils.errors import ResourceNotFoundError
+
+    state = get_state()
+    client = get_client()
+
+    # Allow per-command overrides without mutating global state
+    if account_id:
+        state.account_id = account_id
+    if container_id:
+        state.container_id = container_id
+
+    resolved_account_id = resolve_account_id(state, client)
+    resolved_container_id = resolve_container_id(state, client, resolved_account_id)
+
+    # Fetch workspace details so we can show a meaningful name in the prompt
+    workspace = client.get_workspace(
+        account_id=resolved_account_id,
+        container_id=resolved_container_id,
+        workspace_id=workspace_id,
+        profile_name=state.profile,
+        service_account_path=state.service_account,
+    )
+    workspace_name = workspace.get("name", workspace_id)
+
+    confirmed = yes or state.yes
+    if not confirmed:
+        confirmed = typer.confirm(
+            f"Delete workspace '{workspace_name}' (ID: {workspace_id})? This cannot be undone.",
+            default=False,
+        )
+    if not confirmed:
+        print_info("Cancelled.")
+        raise typer.Exit(0)
+
+    try:
+        client.delete_workspace(
+            account_id=resolved_account_id,
+            container_id=resolved_container_id,
+            workspace_id=workspace_id,
+            profile_name=state.profile,
+            service_account_path=state.service_account,
+        )
+    except ResourceNotFoundError:
+        print_error(f"Workspace '{workspace_id}' not found")
+        raise typer.Exit(1) from None
+
+    print_success(f"Deleted workspace '{workspace_name}' (ID: {workspace_id})")
+
+
 @app.command("preview")
 def workspace_preview() -> None:
     """Open GTM preview mode in the browser.

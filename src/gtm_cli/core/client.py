@@ -254,6 +254,71 @@ class GTMClient:
             self._handle_error(e, f"get workspace {workspace_id}")
             return {}
 
+    def create_workspace(
+        self,
+        account_id: str,
+        container_id: str,
+        name: str,
+        description: str | None = None,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a new workspace in the given container.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            name: The workspace name
+            description: Optional workspace description
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Created workspace dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}"
+        body: dict[str, str] = {"name": name}
+        if description:
+            body["description"] = description
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .create(parent=parent, body=body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, "create workspace")
+            return {}
+
+    def delete_workspace(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> None:
+        """Delete a workspace.
+
+        Returns None — the API returns 204 No Content on success.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID to delete
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            service.accounts().containers().workspaces().delete(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"delete workspace {workspace_id}")
+
     # Tag methods
     def list_tags(
         self,
