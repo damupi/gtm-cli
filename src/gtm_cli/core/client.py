@@ -641,6 +641,178 @@ class GTMClient:
             self._handle_error(e, "list variables")
             return []
 
+    def get_variable(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        variable_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Get a specific variable in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            variable_id: The variable ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Variable dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/variables/{variable_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .variables()
+                .get(path=path)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, f"get variable {variable_id}")
+            return {}
+
+    def create_variable(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        variable_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a new variable in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            variable_body: Variable body dict
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Created variable dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .variables()
+                .create(parent=parent, body=variable_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, "create variable")
+            return {}
+
+    def update_variable(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        variable_id: str,
+        variable_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a variable in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            variable_id: The variable ID to update
+            variable_body: Full variable body (PUT semantics)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Updated variable dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/variables/{variable_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .variables()
+                .update(path=path, body=variable_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, f"update variable {variable_id}")
+            return {}
+
+    def delete_variable(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        variable_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> None:
+        """Delete a variable from a workspace."""
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/variables/{variable_id}"
+        try:
+            service.accounts().containers().workspaces().variables().delete(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"delete variable {variable_id}")
+
+    def revert_variable(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        variable_id: str,
+        fingerprint: str | None = None,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Revert workspace changes for a variable.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            variable_id: The variable ID to revert
+            fingerprint: Optional fingerprint for optimistic concurrency
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Dict with reverted variable under the 'variable' key
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/variables/{variable_id}"
+        kwargs: dict[str, Any] = {"path": path}
+        if fingerprint:
+            kwargs["fingerprint"] = fingerprint
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .variables()
+                .revert(**kwargs)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, f"revert variable {variable_id}")
+            return {}
+
     # Folder methods
     def list_folders(
         self,
