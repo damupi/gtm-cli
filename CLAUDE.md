@@ -42,7 +42,7 @@ Note: `make check` exists but requires tools installed globally. Use `uv run --e
 
 **Output:** `utils/output.py` — `output()` dispatches to JSON, YAML, table (Rich), or plain (tab-separated) format. Table auto-switches to plain when stdout is piped.
 
-**Auth:** `core/auth.py` handles OAuth2 and service accounts. `core/config.py` manages profiles stored as YAML in `~/.gtm-cli/profiles/`.
+**Auth:** `core/auth.py` handles OAuth2 and service accounts. `core/config.py` manages profiles stored as YAML in `~/.gtm-cli/profiles/`. `gtm login` auto-detects gcloud; use `--no-gcloud` to force OAuth2 client secrets flow (requires `~/.config/gtm-cli/client_secrets.json` or `~/.gtm-cli/client_secrets.json`).
 
 ## Testing
 

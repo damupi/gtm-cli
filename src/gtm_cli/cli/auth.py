@@ -42,6 +42,13 @@ def login(
             help="Check login status instead of logging in",
         ),
     ] = False,
+    no_gcloud: Annotated[
+        bool,
+        typer.Option(
+            "--no-gcloud",
+            help="Use OAuth2 client secrets instead of gcloud (requires ~/.config/gtm-cli/client_secrets.json)",
+        ),
+    ] = False,
 ) -> None:
     """Authenticate with Google.
 
@@ -71,6 +78,7 @@ def login(
             profile_name=profile,
             no_browser=no_browser,
             port=port,
+            use_gcloud=False if no_gcloud else None,
         )
         print_success(f"Successfully logged in as {email}")
 
