@@ -2,12 +2,14 @@
 
 import json
 import time
+from unittest.mock import patch
 
 from gtm_cli.utils.output import (
     OutputFormat,
     format_json,
     format_plain,
     format_timestamp,
+    output,
     relative_time,
 )
 
@@ -26,6 +28,33 @@ def test_format_json_dict():
     result = format_json(data)
     parsed = json.loads(result)
     assert parsed == data
+
+
+def test_format_json_multiline_js_is_valid():
+    """format_json must produce parseable JSON even when a value contains newlines.
+
+    Regression test for: gtm variable get -f json producing invalid JSON for
+    jsm variables (literal newlines in the JS body instead of escaped \\n).
+    """
+    js_body = "function() {\n  var x = {{Page URL}};\n  return x || 'default';\n}"
+    data = {"variableId": "495", "name": "CJS - Example", "parameter": [{"key": "javascript", "value": js_body}]}
+    result = format_json(data)
+    parsed = json.loads(result)  # must not raise
+    assert parsed["parameter"][0]["value"] == js_body
+
+
+def test_output_json_is_machine_parseable(capsys):
+    """output(..., fmt=JSON) writes parseable JSON to stdout without Rich markup corruption.
+
+    Rich's console.print() treats square brackets as markup tags, which corrupts
+    JSON arrays. output() must use plain print() for JSON format.
+    """
+    data = [{"variableId": "1", "parameter": [{"key": "javascript", "value": "function() {\n  return true;\n}"}]}]
+    with patch("gtm_cli.utils.output.is_interactive", return_value=False):
+        output(data, fmt=OutputFormat.JSON)
+    captured = capsys.readouterr()
+    parsed = json.loads(captured.out)  # raises if Rich corrupted the output
+    assert parsed[0]["parameter"][0]["value"] == "function() {\n  return true;\n}"
 
 
 def test_format_plain():
