@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 gtm-cli is a Python CLI for Google Tag Manager API v2, built with Typer. It manages GTM accounts, containers, workspaces, tags, triggers, variables, and versions.
 
 See [README.md](README.md) for full command documentation, usage examples, and authentication setup.
+See [docs/AI-USAGE.md](docs/AI-USAGE.md) for AI agent usage patterns and non-obvious behaviors.
 
 ## Commands
 
@@ -53,6 +54,12 @@ Tests use `typer.testing.CliRunner` to invoke commands. The standard pattern:
 
 Patch target for workspace context: `"gtm_cli.cli.tags.resolve_workspace_context"` (adjust module path per command file).
 
+Test files per module:
+- `tests/unit/test_tag_commands.py`
+- `tests/unit/test_trigger_commands.py`
+- `tests/unit/test_variable_commands.py`
+- `tests/unit/test_workspace_context.py`
+
 ## Code Style
 
 - Line length: 100 (ruff)
@@ -62,8 +69,50 @@ Patch target for workspace context: `"gtm_cli.cli.tags.resolve_workspace_context
 
 ## Key Conventions
 
-- `tag_id`, `trigger_id` etc. are strings (GTM API returns them as strings)
+- `tag_id`, `trigger_id`, `variable_id` etc. are strings (GTM API returns them as strings)
 - Commands that modify/delete require `--yes` or interactive confirmation via `confirm()`
 - The `--authuser` global option appends `?authuser=N` to GTM URLs for multi-account Google sessions
+- Global flags (`-a`, `-c`, `-w`, `-f`) must come **before** the subcommand — they belong to `gtm`, not to the subcommand
 - Audit commands (`audit-consent`, `audit-pixels`, `audit-params`, `audit-setup-deps`) analyze API data with heuristics and return categorized findings
 - Tag HTML is extracted via `_get_tag_html()` helper; pixel detection and event parameter extraction use compiled regex patterns in `tags.py`
+- GTM variable references in JS/HTML use `{{variableName}}` syntax — always pass these through verbatim
+
+## Available commands (current)
+
+| Group | Commands |
+|-------|----------|
+| `gtm account` | `list`, `get` |
+| `gtm container` | `list`, `get` |
+| `gtm workspace` | `list`, `get`, `status`, `create`, `delete`, `preview`, `publish` |
+| `gtm tag` | `list`, `get`, `search`, `create`, `update`, `delete`, `revert`, `audit-consent`, `audit-pixels`, `audit-params`, `audit-setup-deps` |
+| `gtm trigger` | `list`, `get`, `create`, `update`, `delete`, `revert` |
+| `gtm variable` | `list`, `get`, `types`, `create`, `update`, `delete`, `revert` |
+| `gtm version` | `list`, `get`, `publish`, `revert` |
+
+## Multi-line JS/HTML parameters
+
+Never pass JavaScript or HTML inline via `--param` — shell quoting silently corrupts multi-line strings. Use `--param-file` instead:
+
+```bash
+# ✓ correct
+gtm variable update 123 --param-file javascript:/tmp/my_var.js
+
+# ✗ wrong — shell corrupts multi-line JS silently
+gtm variable update 123 --param 'javascript:function() { ... }'
+```
+
+The CLI enforces this: passing a `javascript` or `html` key with newlines via `--param` exits with an error and redirects to `--param-file`.
+
+## Workspace limit
+
+GTM enforces a maximum of **3 workspaces** per container. `workspace create` checks the existing count and errors before hitting the API if already at 3.
+
+## GTM UI deep-links
+
+`variable create`, `variable update`, and `workspace create` print a `Review:` link after every write. The URL pattern is:
+
+```
+https://tagmanager.google.com/#/container/accounts/{accountId}/containers/{containerId}/workspaces/{workspaceId}/variables/{variableId}
+```
+
+`containerId` in URLs is the numeric ID, not `GTM-XXXX`.
