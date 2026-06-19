@@ -119,7 +119,9 @@ def update_variable(
             help="Replacement parameters as key:value (repeatable, replaces all existing params)",
         ),
     ] = None,
-    notes: Annotated[str | None, typer.Option("--notes", help="Notes to set on the variable")] = None,
+    notes: Annotated[
+        str | None, typer.Option("--notes", help="Notes to set on the variable")
+    ] = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
 ) -> None:
     """Update an existing variable in the workspace."""
@@ -132,7 +134,11 @@ def update_variable(
 
     variable_name = variable.get("name", variable_id)
 
-    if not ctx.state.yes and not yes and not confirm(f"Update variable '{variable_name}' (ID: {variable_id})?"):
+    if (
+        not ctx.state.yes
+        and not yes
+        and not confirm(f"Update variable '{variable_name}' (ID: {variable_id})?")
+    ):
         raise typer.Exit(0)
 
     updated_body: dict[str, Any] = dict(variable)
@@ -157,7 +163,9 @@ def update_variable(
         variable_id=variable_id, variable_body=updated_body, **ctx.api_kwargs
     )
 
-    print_success(f"Updated variable '{updated_body.get('name', variable_name)}' (ID: {variable_id})")
+    print_success(
+        f"Updated variable '{updated_body.get('name', variable_name)}' (ID: {variable_id})"
+    )
     output(result, fmt=ctx.state.output_format)
 
 
@@ -176,7 +184,11 @@ def delete_variable(
 
     variable_name = variable.get("name", variable_id)
 
-    if not ctx.state.yes and not yes and not confirm(f"Delete variable '{variable_name}' (ID: {variable_id})?"):
+    if (
+        not ctx.state.yes
+        and not yes
+        and not confirm(f"Delete variable '{variable_name}' (ID: {variable_id})?")
+    ):
         raise typer.Exit(0)
 
     ctx.client.delete_variable(variable_id=variable_id, **ctx.api_kwargs)
@@ -195,7 +207,11 @@ def revert_variable(
     """Revert workspace changes for a variable."""
     ctx = resolve_workspace_context()
 
-    if not ctx.state.yes and not yes and not confirm(f"Revert workspace changes for variable '{variable_id}'?"):
+    if (
+        not ctx.state.yes
+        and not yes
+        and not confirm(f"Revert workspace changes for variable '{variable_id}'?")
+    ):
         raise typer.Exit(0)
 
     result = ctx.client.revert_variable(

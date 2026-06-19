@@ -37,9 +37,7 @@ def test_create_trigger_pageview(mock_ctx):
     mock_ctx.client.create_trigger.return_value = {"triggerId": "100", "name": "PV"}
 
     with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
-        result = runner.invoke(
-            app, ["trigger", "create", "--name", "PV", "--type", "pageview"]
-        )
+        result = runner.invoke(app, ["trigger", "create", "--name", "PV", "--type", "pageview"])
 
     assert result.exit_code == 0
     mock_ctx.client.create_trigger.assert_called_once()
@@ -56,11 +54,16 @@ def test_create_trigger_timer_with_params(mock_ctx):
         result = runner.invoke(
             app,
             [
-                "trigger", "create",
-                "--name", "T",
-                "--type", "timer",
-                "--param", "interval:5000",
-                "--param", "limit:1",
+                "trigger",
+                "create",
+                "--name",
+                "T",
+                "--type",
+                "timer",
+                "--param",
+                "interval:5000",
+                "--param",
+                "limit:1",
             ],
         )
 
@@ -81,9 +84,7 @@ def test_create_trigger_timer_default_event_name(mock_ctx):
     mock_ctx.client.create_trigger.return_value = {"triggerId": "102", "name": "T2"}
 
     with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
-        result = runner.invoke(
-            app, ["trigger", "create", "--name", "T2", "--type", "timer"]
-        )
+        result = runner.invoke(app, ["trigger", "create", "--name", "T2", "--type", "timer"])
 
     assert result.exit_code == 0
     trigger_body = mock_ctx.client.create_trigger.call_args.kwargs["trigger_body"]
@@ -96,10 +97,14 @@ def test_create_trigger_invalid_param_format(mock_ctx):
         result = runner.invoke(
             app,
             [
-                "trigger", "create",
-                "--name", "Bad",
-                "--type", "pageview",
-                "--param", "nocolon",
+                "trigger",
+                "create",
+                "--name",
+                "Bad",
+                "--type",
+                "pageview",
+                "--param",
+                "nocolon",
             ],
         )
 
@@ -114,10 +119,14 @@ def test_create_trigger_custom_event_with_params(mock_ctx):
         result = runner.invoke(
             app,
             [
-                "trigger", "create",
-                "--name", "CE",
-                "--type", "customEvent",
-                "--param", "eventName:purchase",
+                "trigger",
+                "create",
+                "--name",
+                "CE",
+                "--type",
+                "customEvent",
+                "--param",
+                "eventName:purchase",
             ],
         )
 
@@ -126,6 +135,51 @@ def test_create_trigger_custom_event_with_params(mock_ctx):
     assert trigger_body["parameter"] == [
         {"type": "template", "key": "eventName", "value": "purchase"},
     ]
+
+
+# -- update_trigger tests --
+
+
+_EXISTING_TRIGGER = {
+    "triggerId": "295",
+    "name": "All Pages",
+    "type": "pageview",
+}
+
+
+def test_update_trigger_success(mock_ctx):
+    """--name renames the trigger and calls client.update_trigger."""
+    mock_ctx.client.list_triggers.return_value = [dict(_EXISTING_TRIGGER)]
+    mock_ctx.client.update_trigger.return_value = {**_EXISTING_TRIGGER, "name": "All Pages v2"}
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "update", "295", "--name", "All Pages v2"])
+
+    assert result.exit_code == 0, result.output
+    mock_ctx.client.update_trigger.assert_called_once()
+    call_kwargs = mock_ctx.client.update_trigger.call_args.kwargs
+    assert call_kwargs["trigger_id"] == "295"
+    assert call_kwargs["trigger_body"]["name"] == "All Pages v2"
+
+
+def test_update_trigger_not_found(mock_ctx):
+    """Trigger not in list exits with code 1."""
+    mock_ctx.client.list_triggers.return_value = [dict(_EXISTING_TRIGGER)]
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "update", "999", "--name", "X"])
+
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+def test_update_trigger_no_changes(mock_ctx):
+    """No options specified exits with code 1."""
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "update", "295"])
+
+    assert result.exit_code == 1
+    assert "No changes specified" in result.output
 
 
 # -- delete_trigger tests --
