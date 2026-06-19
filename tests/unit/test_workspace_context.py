@@ -60,7 +60,7 @@ class TestWorkspaceContextFrozen:
 
         try:
             ctx.account_id = "a2"
-            assert False, "Expected FrozenInstanceError"
+            raise AssertionError("Expected FrozenInstanceError")
         except FrozenInstanceError:
             pass
 
@@ -72,7 +72,12 @@ class TestResolveWorkspaceContext:
     @patch("gtm_cli.core.client.get_client")
     @patch("gtm_cli.cli.main.get_state")
     def test_wires_state_client_and_ids(
-        self, mock_get_state, mock_get_client, mock_resolve_account, mock_resolve_container, mock_resolve_workspace
+        self,
+        mock_get_state,
+        mock_get_client,
+        mock_resolve_account,
+        mock_resolve_container,
+        mock_resolve_workspace,
     ):
         fake_state = _make_state()
         fake_client = MagicMock()

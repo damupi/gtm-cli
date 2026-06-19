@@ -230,14 +230,10 @@ def _build_tag_lookups(
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Build folder and trigger name lookup dicts for display."""
     folders = ctx.client.list_folders(**ctx.api_kwargs)
-    folder_names: dict[str, str] = {
-        f.get("folderId", ""): f.get("name", "") for f in folders
-    }
+    folder_names: dict[str, str] = {f.get("folderId", ""): f.get("name", "") for f in folders}
 
     triggers = ctx.client.list_triggers(**ctx.api_kwargs)
-    trigger_names: dict[str, str] = {
-        t.get("triggerId", ""): t.get("name", "") for t in triggers
-    }
+    trigger_names: dict[str, str] = {t.get("triggerId", ""): t.get("name", "") for t in triggers}
     return folder_names, trigger_names
 
 
@@ -286,7 +282,7 @@ def list_tags(
             "name": t.get("name", ""),
             "type": t.get("type", ""),
             "triggers": _get_firing_trigger_names(t, trigger_names),
-            "folder": folder_names.get(t.get("parentFolderId"), "-"),
+            "folder": folder_names.get(t.get("parentFolderId") or "", "-"),
             "modified": relative_time(t.get("fingerprint", "")),
             "paused": "paused" if t.get("paused") else "",
             "_fingerprint": t.get("fingerprint", "0"),  # for sorting
@@ -398,7 +394,9 @@ def search_tags(
         search_desc += f" trigger={trigger}" if search_desc else f"trigger={trigger}"
 
     if not matched:
-        print_warning(f"No tags matching '{search_desc}'" + (f" (type={tag_type})" if tag_type else ""))
+        print_warning(
+            f"No tags matching '{search_desc}'" + (f" (type={tag_type})" if tag_type else "")
+        )
         raise typer.Exit(0)
 
     data = [
@@ -407,7 +405,7 @@ def search_tags(
             "name": t.get("name", ""),
             "type": t.get("type", ""),
             "triggers": _get_firing_trigger_names(t, trigger_names),
-            "folder": folder_names.get(t.get("parentFolderId"), "-"),
+            "folder": folder_names.get(t.get("parentFolderId") or "", "-"),
             "paused": "paused" if t.get("paused") else "",
         }
         for t in matched
@@ -822,8 +820,14 @@ def audit_setup_deps() -> None:
         issues,
         fmt=ctx.state.output_format,
         columns=[
-            "tag", "tag_id", "dep_type", "dep_tag_name", "dep_tag_id",
-            "issue", "stop_on_failure", "url",
+            "tag",
+            "tag_id",
+            "dep_type",
+            "dep_tag_name",
+            "dep_tag_id",
+            "issue",
+            "stop_on_failure",
+            "url",
         ],
         title="Broken Setup/Teardown Dependencies",
     )
@@ -1187,6 +1191,14 @@ def update_tag(
         bool,
         typer.Option("--clear-teardown-tag", help="Remove all teardownTag dependencies"),
     ] = False,
+    param: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--param",
+            help="Upsert a parameter as key:value (repeatable). Updates matching key in "
+            "the parameter array or appends if not present.",
+        ),
+    ] = None,
 ) -> None:
     """Update an existing tag in the workspace.
 
@@ -1198,11 +1210,19 @@ def update_tag(
         gtm tag update 420 --name "TikTok Stub v2"
         gtm tag update 421 --trigger-id 295 --trigger-id 296
         gtm tag update 308 --clear-setup-tag
+        gtm tag update 421 --param conversionId:12345
     """
     ctx = resolve_workspace_context()
 
-    if all(v is None for v in (name, html, html_file, trigger_id, folder_id)) and not clear_setup_tag and not clear_teardown_tag:
-        print_error("No changes specified. Use --name, --html, --html-file, --trigger-id, --folder-id, --clear-setup-tag, or --clear-teardown-tag.")
+    if (
+        all(v is None for v in (name, html, html_file, trigger_id, folder_id, param))
+        and not clear_setup_tag
+        and not clear_teardown_tag
+    ):
+        print_error(
+            "No changes specified. Use --name, --html, --html-file, --trigger-id, "
+            "--folder-id, --param, --clear-setup-tag, or --clear-teardown-tag."
+        )
         raise typer.Exit(1)
 
     html_content = _resolve_html_content(html, html_file)
@@ -1241,6 +1261,23 @@ def update_tag(
     if clear_teardown_tag and "teardownTag" in tag:
         removed = [st.get("tagName", "unknown") for st in tag.pop("teardownTag")]
         print_info(f"Removed teardownTag dependencies: {', '.join(removed)}")
+
+    if param:
+        param_map: dict[str, str] = {}
+        for p in param:
+            if ":" not in p:
+                print_error(f"Invalid param format '{p}'. Use key:value")
+                raise typer.Exit(1)
+            k, v = p.split(":", 1)
+            param_map[k] = v
+
+        existing_params: list[dict[str, Any]] = tag.setdefault("parameter", [])
+        for entry in existing_params:
+            if entry.get("key") in param_map:
+                entry["value"] = param_map.pop(entry["key"])
+        # Append any keys that were not found
+        for k, v in param_map.items():
+            existing_params.append({"type": "template", "key": k, "value": v})
 
     result = ctx.client.update_tag(tag_id=tag_id, tag_body=tag, **ctx.api_kwargs)
     print_success(f"Updated tag '{result.get('name', tag_id)}' (ID: {tag_id})")

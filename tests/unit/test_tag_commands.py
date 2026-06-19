@@ -84,10 +84,14 @@ class TestCreateTag:
             result = runner.invoke(
                 app,
                 [
-                    "tag", "create",
-                    "--name", "Bad",
-                    "--html", "<script>inline</script>",
-                    "--html-file", str(html_file),
+                    "tag",
+                    "create",
+                    "--name",
+                    "Bad",
+                    "--html",
+                    "<script>inline</script>",
+                    "--html-file",
+                    str(html_file),
                 ],
             )
 
@@ -113,12 +117,18 @@ class TestCreateTag:
             result = runner.invoke(
                 app,
                 [
-                    "tag", "create",
-                    "--name", "Full Tag",
-                    "--html", "<script>x</script>",
-                    "--trigger-id", "295",
-                    "--trigger-id", "310",
-                    "--folder-id", "409",
+                    "tag",
+                    "create",
+                    "--name",
+                    "Full Tag",
+                    "--html",
+                    "<script>x</script>",
+                    "--trigger-id",
+                    "295",
+                    "--trigger-id",
+                    "310",
+                    "--folder-id",
+                    "409",
                 ],
             )
 
@@ -135,9 +145,12 @@ class TestCreateTag:
             result = runner.invoke(
                 app,
                 [
-                    "tag", "create",
-                    "--name", "Unlimited",
-                    "--html", "<script>x</script>",
+                    "tag",
+                    "create",
+                    "--name",
+                    "Unlimited",
+                    "--html",
+                    "<script>x</script>",
                     "--unlimited",
                 ],
             )
@@ -184,9 +197,7 @@ class TestUpdateTag:
         mock_ctx.client.update_tag.return_value = _EXISTING_TAG
 
         with patch(_PATCH_TARGET, return_value=mock_ctx):
-            result = runner.invoke(
-                app, ["tag", "update", "421", "--html", "<script>new</script>"]
-            )
+            result = runner.invoke(app, ["tag", "update", "421", "--html", "<script>new</script>"])
 
         assert result.exit_code == 0, result.output
         body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
@@ -201,9 +212,7 @@ class TestUpdateTag:
         mock_ctx.client.update_tag.return_value = _EXISTING_TAG
 
         with patch(_PATCH_TARGET, return_value=mock_ctx):
-            result = runner.invoke(
-                app, ["tag", "update", "421", "--html-file", str(html_file)]
-            )
+            result = runner.invoke(app, ["tag", "update", "421", "--html-file", str(html_file)])
 
         assert result.exit_code == 0, result.output
         body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
@@ -218,7 +227,15 @@ class TestUpdateTag:
         with patch(_PATCH_TARGET, return_value=mock_ctx):
             result = runner.invoke(
                 app,
-                ["tag", "update", "421", "--html", "<script>y</script>", "--html-file", str(html_file)],
+                [
+                    "tag",
+                    "update",
+                    "421",
+                    "--html",
+                    "<script>y</script>",
+                    "--html-file",
+                    str(html_file),
+                ],
             )
 
         assert result.exit_code == 1
@@ -269,6 +286,54 @@ class TestUpdateTag:
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
 
+    def test_update_param_updates_existing_key(self, mock_ctx):
+        """--param updates the value of an existing parameter key."""
+        tag = {
+            **_EXISTING_TAG,
+            "parameter": [
+                {"type": "template", "key": "conversionId", "value": "old-id"},
+                {"type": "template", "key": "html", "value": "<script>x</script>"},
+            ],
+        }
+        mock_ctx.client.get_tag.return_value = tag
+        mock_ctx.client.update_tag.return_value = tag
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--param", "conversionId:new-id"])
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        conv_param = next(p for p in body["parameter"] if p["key"] == "conversionId")
+        assert conv_param["value"] == "new-id"
+        # Other params remain unchanged
+        html_param = next(p for p in body["parameter"] if p["key"] == "html")
+        assert html_param["value"] == "<script>x</script>"
+
+    def test_update_param_appends_new_key(self, mock_ctx):
+        """--param appends a new entry when the key is not already present."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = {**_EXISTING_TAG}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--param", "newKey:newValue"])
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        new_param = next((p for p in body["parameter"] if p["key"] == "newKey"), None)
+        assert new_param is not None
+        assert new_param["value"] == "newValue"
+        assert new_param["type"] == "template"
+
+    def test_update_param_invalid_format_exits_error(self, mock_ctx):
+        """--param without colon separator exits with code 1."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--param", "nocolon"])
+
+        assert result.exit_code == 1
+        assert "Invalid param format" in result.output
+
     def test_update_html_inserts_param_when_missing(self, mock_ctx):
         """If tag has no html parameter, one is appended."""
         tag_no_html = {
@@ -283,9 +348,7 @@ class TestUpdateTag:
         mock_ctx.client.update_tag.return_value = tag_no_html
 
         with patch(_PATCH_TARGET, return_value=mock_ctx):
-            result = runner.invoke(
-                app, ["tag", "update", "421", "--html", "<script>new</script>"]
-            )
+            result = runner.invoke(app, ["tag", "update", "421", "--html", "<script>new</script>"])
 
         assert result.exit_code == 0, result.output
         body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]

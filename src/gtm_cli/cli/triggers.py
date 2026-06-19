@@ -116,6 +116,44 @@ def create_trigger(
     output(result, fmt=ctx.state.output_format)
 
 
+@app.command("update")
+def update_trigger(
+    trigger_id: Annotated[str, typer.Argument(help="Trigger ID to update")],
+    name: Annotated[
+        str | None,
+        typer.Option("--name", "-n", help="New trigger name"),
+    ] = None,
+) -> None:
+    """Update an existing trigger in the workspace.
+
+    Fetches the current trigger, applies changes, and saves. Only specified
+    fields are changed; everything else is preserved.
+
+    Examples:
+        gtm trigger update 295 --name "All Pages - New"
+    """
+    ctx = resolve_workspace_context()
+
+    if not name:
+        print_error("No changes specified. Use --name to rename the trigger.")
+        raise typer.Exit(1)
+
+    triggers = ctx.client.list_triggers(**ctx.api_kwargs)
+    trigger = next((t for t in triggers if t.get("triggerId") == trigger_id), None)
+    if not trigger:
+        print_error(f"Trigger '{trigger_id}' not found")
+        raise typer.Exit(1)
+
+    if name:
+        trigger["name"] = name
+
+    result = ctx.client.update_trigger(
+        trigger_id=trigger_id, trigger_body=trigger, **ctx.api_kwargs
+    )
+    print_success(f"Updated trigger '{result.get('name', trigger_id)}' (ID: {trigger_id})")
+    output(result, fmt=ctx.state.output_format)
+
+
 @app.command("delete")
 def delete_trigger(
     trigger_id: Annotated[str, typer.Argument(help="Trigger ID to delete")],
