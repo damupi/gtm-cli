@@ -12,7 +12,12 @@ from gtm_cli.utils.output import OutputFormat
 # Create the main app
 app = typer.Typer(
     name="gtm",
-    help="GTM CLI - Command-line tool for Google Tag Manager API v2",
+    help=(
+        "GTM CLI - Command-line tool for Google Tag Manager API v2\n\n"
+        "[bold yellow]IMPORTANT:[/bold yellow] Global flags (-a, -c, -w, -f) must come BEFORE the subcommand.\n\n"
+        "  [green]gtm -a 123 -c 456 -w 3 -f json variable list[/green]   ✓ correct\n"
+        "  [red]gtm variable list --format json[/red]                    ✗ wrong — 'No such option' error"
+    ),
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
@@ -101,7 +106,7 @@ def main(
         typer.Option(
             "--format",
             "-f",
-            help="Output format",
+            help="Output format: table (default) / json / yaml / plain (tab-separated, for pipes)",
         ),
     ] = OutputFormat.TABLE,
     verbose: Annotated[
@@ -153,6 +158,11 @@ def main(
     from the command line.
 
     GTM Hierarchy: Account → Container → Workspace → Tags/Triggers/Variables
+
+    Global flags (-a, -c, -w, -f) MUST go before the subcommand:
+
+        gtm -a 123 -c 456 -w 3 -f json variable list   ✓
+        gtm variable list --format json                 ✗  ('No such option' error)
 
     Quick Start:
         gtm setup              # First-time setup wizard
