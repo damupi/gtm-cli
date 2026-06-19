@@ -5,8 +5,15 @@ from typing import Annotated, Any
 
 import typer
 
-from gtm_cli.cli.helpers import resolve_workspace_context
-from gtm_cli.utils.output import confirm, output, print_error, print_success
+from gtm_cli.cli.helpers import add_authuser, resolve_workspace_context
+from gtm_cli.utils.output import (
+    OutputFormat,
+    confirm,
+    output,
+    print_error,
+    print_info,
+    print_success,
+)
 
 app = typer.Typer(
     help="""Manage GTM variables.
@@ -18,6 +25,37 @@ Auto-detects account/container/workspace if you have only one of each.
 Example: gtm variable list
 """
 )
+
+# GTM variable type registry — used by `gtm variable types`
+_VARIABLE_TYPES: list[dict[str, str]] = [
+    {"type": "v", "name": "Data Layer Variable", "key_params": "name, dataLayerVersion"},
+    {"type": "u", "name": "URL", "key_params": "component (PATH|HOST|QUERY|FRAGMENT|PORT|PROTOCOL|FULL_URL)"},
+    {"type": "k", "name": "First-Party Cookie", "key_params": "name"},
+    {"type": "c", "name": "Constant", "key_params": "value"},
+    {"type": "j", "name": "JavaScript Variable", "key_params": "name"},
+    {"type": "jsm", "name": "Custom JavaScript", "key_params": "javascript  ← always use --param-file"},
+    {"type": "e", "name": "Auto-Event Variable", "key_params": "varType"},
+    {"type": "r", "name": "HTTP Referrer", "key_params": "component"},
+    {"type": "smm", "name": "Lookup Table", "key_params": "input, map"},
+    {"type": "remm", "name": "RegEx Table", "key_params": "input, map"},
+    {"type": "aev", "name": "Element Visibility", "key_params": "selectorType, selector"},
+    {"type": "vis", "name": "Visibility State", "key_params": "selectorType, selector"},
+    {"type": "d", "name": "DOM Element", "key_params": "selectorType, selector"},
+    {"type": "f", "name": "HTTP Referrer (full)", "key_params": "(none)"},
+    {"type": "gas", "name": "Google Analytics Settings", "key_params": "trackingId"},
+]
+
+_GTM_VAR_BASE = "https://tagmanager.google.com/#/container/accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/variables/{variable_id}"
+
+
+def _gtm_variable_url(ctx: Any, variable_id: str) -> str:
+    url = _GTM_VAR_BASE.format(
+        account_id=ctx.account_id,
+        container_id=ctx.container_id,
+        workspace_id=ctx.workspace_id,
+        variable_id=variable_id,
+    )
+    return add_authuser(url, ctx.state.authuser)
 
 
 def _parse_param_files(param_file: list[str] | None) -> dict[str, str]:
@@ -48,6 +86,22 @@ def _parse_param_files(param_file: list[str] | None) -> dict[str, str]:
             raise typer.Exit(1)
         result[key] = file_path.read_text()
     return result
+
+
+def _guard_inline_code(param_map: dict[str, str]) -> None:
+    """Error if a javascript or html parameter value contains newlines.
+
+    Inline multi-line JS/HTML passed via --param is corrupted by shell quoting.
+    Redirect the user to --param-file before the write happens.
+    """
+    for key, value in param_map.items():
+        if key in ("javascript", "html") and "\n" in value:
+            print_error(
+                f"--param {key}: multi-line value detected. "
+                f"Shell quoting will corrupt this. "
+                f"Use --param-file {key}:/path/to/file instead."
+            )
+            raise typer.Exit(1)
 
 
 @app.command("list")
@@ -84,18 +138,35 @@ def get_variable(
     output(variable, fmt=ctx.state.output_format)
 
 
+@app.command("types")
+def variable_types() -> None:
+    """List all GTM variable types and their key parameters.
+
+    Use the Type column as the value for --type when creating or updating variables.
+    """
+    output(_VARIABLE_TYPES, fmt=OutputFormat.TABLE, title="Variable Types")
+
+
 @app.command("create")
 def create_variable(
     name: Annotated[str, typer.Option("--name", "-n", help="Variable name")],
     variable_type: Annotated[
         str,
-        typer.Option("--type", "-t", help="Variable type (e.g. v, u, k, jsm, smm, remm)"),
+        typer.Option(
+            "--type",
+            "-t",
+            help="Variable type (e.g. jsm, v, u, k, c). Run 'gtm variable types' for the full list.",
+        ),
     ],
     param: Annotated[
         list[str] | None,
         typer.Option(
             "--param",
-            help="Parameter as key:value (repeatable, e.g. --param name:gtm.elementId)",
+            help=(
+                "Parameter as key:value (repeatable, e.g. --param name:gtm.elementId). "
+                "WARNING: do not use for multi-line JS/HTML — shell quoting corrupts strings. "
+                "Use --param-file instead."
+            ),
         ),
     ] = None,
     param_file: Annotated[
@@ -104,7 +175,8 @@ def create_variable(
             "--param-file",
             help=(
                 "Parameter as key:path (repeatable). Reads file content verbatim as the value. "
-                "Use for multi-line JS/HTML (e.g. --param-file javascript:script.js)"
+                "Use for multi-line JS/HTML (e.g. --param-file javascript:script.js). "
+                "Overrides --param for the same key."
             ),
         ),
     ] = None,
@@ -112,17 +184,24 @@ def create_variable(
 ) -> None:
     """Create a new variable in the workspace.
 
-    Parameters are passed as key:value pairs via --param. For parameters
-    containing multi-line code (e.g. Custom JavaScript), use --param-file
-    to read the value from a file, which preserves whitespace exactly.
+    Run 'gtm variable types' to see all available types and their parameters.
+
+    For Custom JavaScript variables (type: jsm), always use --param-file to supply
+    the code from a file — passing JS inline via --param corrupts multi-line code silently.
 
     GTM variable references inside parameter values use double curly brackets:
     {{variableName}}. These are passed through verbatim — do not escape them.
 
     Examples:
-        gtm variable create --name "Page URL" --type u
-        gtm variable create --name "Click ID" --type v --param name:gtm.elementId
-        gtm variable create --name "My JS Var" --type jsm --param-file javascript:myscript.js
+
+      # URL variable
+      gtm variable create --name "Page URL" --type u
+
+      # Data layer variable
+      gtm variable create --name "Click ID" --type v --param name:gtm.elementId
+
+      # Custom JavaScript (always use --param-file for JS code)
+      gtm variable create --name "My JS Var" --type jsm --param-file javascript:myscript.js
     """
     ctx = resolve_workspace_context()
 
@@ -144,6 +223,7 @@ def create_variable(
                     raise typer.Exit(1)
                 key, value = p.split(":", 1)
                 param_map[key] = value
+        _guard_inline_code(param_map)
         # param_file values override --param values for the same key
         param_map.update(file_values)
         variable_body["parameter"] = [
@@ -156,7 +236,13 @@ def create_variable(
     result = ctx.client.create_variable(variable_body=variable_body, **ctx.api_kwargs)
 
     variable_id = result.get("variableId", "")
-    print_success(f"Created variable '{name}' (ID: {variable_id})")
+    file_hint = (
+        "  [" + ", ".join(f"{k} ← {Path(pf.split(':', 1)[1]).name}" for pf in (param_file or []) for k in [pf.split(":", 1)[0]]) + "]"
+        if param_file else ""
+    )
+    print_success(f"Created variable '{name}' (ID: {variable_id}){file_hint}")
+    review_url = _gtm_variable_url(ctx, variable_id)
+    print_info(f"Review: {review_url}")
     output(result, fmt=ctx.state.output_format)
 
 
@@ -166,15 +252,16 @@ def update_variable(
     name: Annotated[str | None, typer.Option("--name", "-n", help="New variable name")] = None,
     variable_type: Annotated[
         str | None,
-        typer.Option("--type", "-t", help="New variable type"),
+        typer.Option("--type", "-t", help="New variable type. Run 'gtm variable types' for options."),
     ] = None,
     param: Annotated[
         list[str] | None,
         typer.Option(
             "--param",
             help=(
-                "Upsert a parameter as key:value (repeatable). Updates matching key in "
-                "the parameter array or appends if not present."
+                "Upsert a parameter as key:value (repeatable). Updates matching key or appends. "
+                "WARNING: do not use for multi-line JS/HTML — shell quoting corrupts strings. "
+                "Use --param-file instead."
             ),
         ),
     ] = None,
@@ -184,8 +271,9 @@ def update_variable(
             "--param-file",
             help=(
                 "Upsert a parameter from a file as key:path (repeatable). Reads file content "
-                "verbatim as the value — preserves all whitespace and line breaks. "
-                "Use for multi-line JS/HTML (e.g. --param-file javascript:script.js)"
+                "verbatim — preserves all whitespace, line breaks, and {{variableName}} references. "
+                "Use for multi-line JS/HTML (e.g. --param-file javascript:script.js). "
+                "Overrides --param for the same key."
             ),
         ),
     ] = None,
@@ -199,17 +287,25 @@ def update_variable(
     Fetches the current variable, applies changes, and saves. Only specified
     fields are changed; everything else is preserved.
 
-    For parameters containing multi-line code such as Custom JavaScript
-    variables, use --param-file to load the value from a file. This avoids
-    any shell quoting or line-wrapping issues.
+    For Custom JavaScript variables (type: jsm), always use --param-file to supply
+    the code from a file — passing JS inline via --param corrupts multi-line code silently.
 
     GTM variable references inside parameter values use double curly brackets:
     {{variableName}}. These are passed through verbatim — do not escape them.
 
     Examples:
-        gtm variable update 123 --name "New Name"
-        gtm variable update 123 --param name:gtm.elementId
-        gtm variable update 123 --param-file javascript:myscript.js
+
+      # Rename a variable
+      gtm variable update 123 --name "New Name"
+
+      # Update a simple parameter
+      gtm variable update 123 --param name:gtm.elementId
+
+      # Update a Custom JavaScript variable body (always use --param-file for JS)
+      gtm variable update 123 --param-file javascript:/tmp/my_var.js
+
+      # Update notes
+      gtm variable update 123 --notes "Updated by WEBDATA-123"
     """
     ctx = resolve_workspace_context()
 
@@ -246,6 +342,7 @@ def update_variable(
                     raise typer.Exit(1)
                 key, value = p.split(":", 1)
                 upsert_map[key] = value
+        _guard_inline_code(upsert_map)
         # param_file values override --param values for the same key
         upsert_map.update(file_values)
 
@@ -265,9 +362,14 @@ def update_variable(
         variable_id=variable_id, variable_body=updated_body, **ctx.api_kwargs
     )
 
-    print_success(
-        f"Updated variable '{updated_body.get('name', variable_name)}' (ID: {variable_id})"
+    final_name = updated_body.get("name", variable_name)
+    file_hint = (
+        "  [" + ", ".join(f"{pf.split(':', 1)[0]} ← {Path(pf.split(':', 1)[1]).name}" for pf in (param_file or [])) + "]"
+        if param_file else ""
     )
+    print_success(f"Updated variable '{final_name}' (ID: {variable_id}){file_hint}")
+    review_url = _gtm_variable_url(ctx, variable_id)
+    print_info(f"Review: {review_url}")
     output(result, fmt=ctx.state.output_format)
 
 
