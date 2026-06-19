@@ -12,8 +12,13 @@ from gtm_cli.utils.output import output, print_error
 app = typer.Typer(
     help="""Manage GTM containers.
 
-Containers hold all your tags, triggers, and variables. Each container has a GTM-XXXX ID.
-A container is typically one website or app.
+Containers hold all your tags, triggers, and variables. A container is typically one website or app.
+
+Each container has two IDs — use the numeric one (container_id column) for all CLI flags, NOT the
+public GTM-XXXX ID:
+
+  gtm -a 123 -c 8983761 workspace list   ✓  numeric container_id
+  gtm -a 123 -c GTM-ABC123 workspace list ✗  public ID not accepted by the API
 
 Auto-detects account if you have only one.
 

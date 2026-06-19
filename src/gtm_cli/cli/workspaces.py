@@ -21,6 +21,9 @@ app = typer.Typer(
 Workspaces are where you edit tags, triggers, and variables before publishing.
 Every container has a "Default Workspace" with ID 1.
 
+GTM enforces a maximum of 3 workspaces per container. Run 'gtm workspace list'
+to check the current count before creating a new one.
+
 Auto-detects account/container if you have only one of each.
 
 Example: gtm workspace list
@@ -342,6 +345,10 @@ def create_workspace(
 ) -> None:
     """Create a new workspace in the container.
 
+    GTM enforces a maximum of 3 workspaces per container. This command checks
+    the current count and stops if the limit is reached — ask the user to delete
+    an existing workspace before proceeding.
+
     Examples:
         gtm workspace create --name "My Feature"
         gtm workspace create --name "My Feature" --description "Work for Q3 campaign"
@@ -359,6 +366,20 @@ def create_workspace(
     resolved_account_id = resolve_account_id(state, client)
     resolved_container_id = resolve_container_id(state, client, resolved_account_id)
 
+    # GTM enforces a hard limit of 3 workspaces per container
+    existing = client.list_workspaces(
+        account_id=resolved_account_id,
+        container_id=resolved_container_id,
+        profile_name=state.profile,
+        service_account_path=state.service_account,
+    )
+    if len(existing) >= 3:
+        print_error(
+            f"Container {resolved_container_id} already has {len(existing)} workspaces "
+            f"(GTM maximum is 3). Delete an existing workspace before creating a new one."
+        )
+        raise typer.Exit(1)
+
     workspace = client.create_workspace(
         account_id=resolved_account_id,
         container_id=resolved_container_id,
@@ -371,6 +392,12 @@ def create_workspace(
     workspace_id = workspace.get("workspaceId", "")
     workspace_name = workspace.get("name", "")
     print_success(f"Created workspace '{workspace_name}' (ID: {workspace_id})")
+    review_url = (
+        f"https://tagmanager.google.com/#/container"
+        f"/accounts/{resolved_account_id}/containers/{resolved_container_id}"
+        f"/workspaces/{workspace_id}"
+    )
+    print_info(f"Review: {add_authuser(review_url, state.authuser)}")
     output(workspace, fmt=state.output_format)
 
 
