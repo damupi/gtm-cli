@@ -109,9 +109,11 @@ def output(
         fmt = OutputFormat.PLAIN
 
     if fmt == OutputFormat.JSON:
-        console.print(format_json(data))
+        # Use print() not console.print() — Rich treats [] as markup tags and corrupts JSON
+        print(format_json(data))
     elif fmt == OutputFormat.YAML:
-        console.print(format_yaml(data))
+        # Same: bypass Rich to avoid markup interpretation
+        print(format_yaml(data), end="")
     elif fmt == OutputFormat.PLAIN:
         if isinstance(data, list):
             print(format_plain(data, columns=columns))
