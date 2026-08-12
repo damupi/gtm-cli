@@ -843,6 +843,166 @@ class GTMClient:
             self._handle_error(e, f"revert variable {variable_id}")
             return {}
 
+    # Custom Template methods
+    def list_templates(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List all Custom Templates in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            List of template dictionaries
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            response = (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .templates()
+                .list(parent=parent)
+                .execute()
+            )
+            return response.get("template", [])
+        except HttpError as e:
+            self._handle_error(e, "list templates")
+            return []
+
+    def get_template(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        template_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Get a specific Custom Template in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            template_id: The template ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Template dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/templates/{template_id}"
+        try:
+            return service.accounts().containers().workspaces().templates().get(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"get template {template_id}")
+            return {}
+
+    def create_template(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        template_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a Custom Template in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            template_body: Template body (name, templateData)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Created template dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .templates()
+                .create(parent=parent, body=template_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, "create template")
+            return {}
+
+    def update_template(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        template_id: str,
+        template_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a Custom Template in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            template_id: The template ID to update
+            template_body: Full template body (PUT semantics)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Updated template dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/templates/{template_id}"
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .templates()
+                .update(path=path, body=template_body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, f"update template {template_id}")
+            return {}
+
+    def delete_template(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        template_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> None:
+        """Delete a Custom Template from a workspace."""
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/templates/{template_id}"
+        try:
+            service.accounts().containers().workspaces().templates().delete(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"delete template {template_id}")
+
     # Folder methods
     def list_folders(
         self,

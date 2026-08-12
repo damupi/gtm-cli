@@ -203,6 +203,7 @@ def register_commands() -> None:
     from gtm_cli.cli import profile as profile_cli
     from gtm_cli.cli import setup as setup_cli
     from gtm_cli.cli import tags as tags_cli
+    from gtm_cli.cli import templates as templates_cli
     from gtm_cli.cli import triggers as triggers_cli
     from gtm_cli.cli import variables as variables_cli
     from gtm_cli.cli import versions as versions_cli
@@ -218,6 +219,7 @@ def register_commands() -> None:
     app.add_typer(containers_cli.app, name="container")
     app.add_typer(workspaces_cli.app, name="workspace")
     app.add_typer(tags_cli.app, name="tag")
+    app.add_typer(templates_cli.app, name="template")
     app.add_typer(triggers_cli.app, name="trigger")
     app.add_typer(variables_cli.app, name="variable")
     app.add_typer(versions_cli.app, name="version")
