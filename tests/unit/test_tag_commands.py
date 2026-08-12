@@ -159,6 +159,29 @@ class TestCreateTag:
         body = mock_ctx.client.create_tag.call_args.kwargs["tag_body"]
         assert body["tagFiringOption"] == "unlimited"
 
+    def test_create_tag_with_notes(self, mock_ctx):
+        """--notes sets the notes field on creation."""
+        mock_ctx.client.create_tag.return_value = {"tagId": "46", "name": "Noted"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "tag",
+                    "create",
+                    "--name",
+                    "Noted",
+                    "--html",
+                    "<script>x</script>",
+                    "--notes",
+                    "Why this tag exists",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.create_tag.call_args.kwargs["tag_body"]
+        assert body["notes"] == "Why this tag exists"
+
 
 # ---------------------------------------------------------------------------
 # update_tag
@@ -333,6 +356,31 @@ class TestUpdateTag:
 
         assert result.exit_code == 1
         assert "Invalid param format" in result.output
+
+    def test_update_notes_sets_value(self, mock_ctx):
+        """--notes sets the notes field on the tag."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = {**_EXISTING_TAG, "notes": "Workaround for X"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--notes", "Workaround for X"])
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        assert body["notes"] == "Workaround for X"
+
+    def test_update_notes_clears_value(self, mock_ctx):
+        """--notes '' clears an existing notes field."""
+        tag = {**_EXISTING_TAG, "notes": "Old note"}
+        mock_ctx.client.get_tag.return_value = tag
+        mock_ctx.client.update_tag.return_value = {**tag, "notes": ""}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--notes", ""])
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        assert body["notes"] == ""
 
     def test_update_html_inserts_param_when_missing(self, mock_ctx):
         """If tag has no html parameter, one is appended."""

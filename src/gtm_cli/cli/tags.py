@@ -1108,6 +1108,10 @@ def create_tag(
         bool,
         typer.Option("--once-per-event/--unlimited", help="Fire once per event (default: once)"),
     ] = True,
+    notes: Annotated[
+        str | None,
+        typer.Option("--notes", help="Notes describing the tag"),
+    ] = None,
 ) -> None:
     """Create a new tag in the workspace.
 
@@ -1142,6 +1146,9 @@ def create_tag(
 
     if folder_id:
         tag_body["parentFolderId"] = folder_id
+
+    if notes is not None:
+        tag_body["notes"] = notes
 
     tag_body["tagFiringOption"] = "oncePerEvent" if once_per_event else "unlimited"
 
@@ -1199,6 +1206,10 @@ def update_tag(
             "the parameter array or appends if not present.",
         ),
     ] = None,
+    notes: Annotated[
+        str | None,
+        typer.Option("--notes", help="Set notes describing the tag (pass '' to clear)"),
+    ] = None,
 ) -> None:
     """Update an existing tag in the workspace.
 
@@ -1211,17 +1222,19 @@ def update_tag(
         gtm tag update 421 --trigger-id 295 --trigger-id 296
         gtm tag update 308 --clear-setup-tag
         gtm tag update 421 --param conversionId:12345
+        gtm tag update 421 --notes "Workaround for consent gate; see WEBDATA-983"
+        gtm tag update 421 --notes ''
     """
     ctx = resolve_workspace_context()
 
     if (
-        all(v is None for v in (name, html, html_file, trigger_id, folder_id, param))
+        all(v is None for v in (name, html, html_file, trigger_id, folder_id, param, notes))
         and not clear_setup_tag
         and not clear_teardown_tag
     ):
         print_error(
             "No changes specified. Use --name, --html, --html-file, --trigger-id, "
-            "--folder-id, --param, --clear-setup-tag, or --clear-teardown-tag."
+            "--folder-id, --param, --notes, --clear-setup-tag, or --clear-teardown-tag."
         )
         raise typer.Exit(1)
 
@@ -1253,6 +1266,9 @@ def update_tag(
 
     if folder_id is not None:
         tag["parentFolderId"] = folder_id
+
+    if notes is not None:
+        tag["notes"] = notes
 
     if clear_setup_tag and "setupTag" in tag:
         removed = [st.get("tagName", "unknown") for st in tag.pop("setupTag")]
