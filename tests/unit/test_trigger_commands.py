@@ -111,8 +111,21 @@ def test_create_trigger_invalid_param_format(mock_ctx):
     assert result.exit_code == 1
 
 
-def test_create_trigger_custom_event_with_params(mock_ctx):
-    """customEvent with --param puts entries in the parameters array."""
+def test_create_trigger_custom_event_requires_event_name(mock_ctx):
+    """customEvent without --event-name exits with code 1 (no valid customEventFilter)."""
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(
+            app,
+            ["trigger", "create", "--name", "CE", "--type", "customEvent"],
+        )
+
+    assert result.exit_code == 1
+    assert "--event-name" in result.output
+    mock_ctx.client.create_trigger.assert_not_called()
+
+
+def test_create_trigger_custom_event_builds_filter(mock_ctx):
+    """customEvent with --event-name builds a valid customEventFilter."""
     mock_ctx.client.create_trigger.return_value = {"triggerId": "103", "name": "CE"}
 
     with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
@@ -125,15 +138,49 @@ def test_create_trigger_custom_event_with_params(mock_ctx):
                 "CE",
                 "--type",
                 "customEvent",
+                "--event-name",
+                "purchase",
+            ],
+        )
+
+    assert result.exit_code == 0
+    trigger_body = mock_ctx.client.create_trigger.call_args.kwargs["trigger_body"]
+    assert trigger_body["customEventFilter"] == [
+        {
+            "type": "equals",
+            "parameter": [
+                {"type": "template", "key": "arg0", "value": "{{_event}}"},
+                {"type": "template", "key": "arg1", "value": "purchase"},
+            ],
+        }
+    ]
+
+
+def test_create_trigger_custom_event_with_extra_params(mock_ctx):
+    """customEvent still accepts extra --param entries alongside the built filter."""
+    mock_ctx.client.create_trigger.return_value = {"triggerId": "104", "name": "CE2"}
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(
+            app,
+            [
+                "trigger",
+                "create",
+                "--name",
+                "CE2",
+                "--type",
+                "customEvent",
+                "--event-name",
+                "purchase",
                 "--param",
-                "eventName:purchase",
+                "someKey:someValue",
             ],
         )
 
     assert result.exit_code == 0
     trigger_body = mock_ctx.client.create_trigger.call_args.kwargs["trigger_body"]
     assert trigger_body["parameter"] == [
-        {"type": "template", "key": "eventName", "value": "purchase"},
+        {"type": "template", "key": "someKey", "value": "someValue"},
     ]
 
 
