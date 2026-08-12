@@ -319,6 +319,11 @@ Remember to grant the service account access in Tag Manager:
 | `gtm tag audit-pixels` | Audit pixel/script loading issues (with optional `--params`) |
 | `gtm tag audit-params` | Audit event parameters sent by tracking tags |
 | `gtm tag audit-setup-deps` | Find broken setup/teardown tag dependencies |
+| `gtm template list` | List Custom Templates (sandboxed JS `.tpl`) |
+| `gtm template get` | Get Custom Template details |
+| `gtm template create` | Create a Custom Template from a `.tpl` file |
+| `gtm template update` | Update a Custom Template's name and/or `.tpl` content |
+| `gtm template delete` | Delete a Custom Template |
 | `gtm trigger list` | List triggers |
 | `gtm trigger get` | Get trigger details |
 | `gtm trigger create` | Create a new trigger |

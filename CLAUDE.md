@@ -85,6 +85,7 @@ Test files per module:
 | `gtm container` | `list`, `get` |
 | `gtm workspace` | `list`, `get`, `status`, `create`, `delete`, `preview`, `publish` |
 | `gtm tag` | `list`, `get`, `search`, `create`, `update`, `delete`, `revert`, `audit-consent`, `audit-pixels`, `audit-params`, `audit-setup-deps` |
+| `gtm template` | `list`, `get`, `create`, `update`, `delete` |
 | `gtm trigger` | `list`, `get`, `create`, `update`, `delete`, `revert` |
 | `gtm variable` | `list`, `get`, `types`, `create`, `update`, `delete`, `revert` |
 | `gtm version` | `list`, `get`, `publish`, `revert` |
