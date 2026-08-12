@@ -75,6 +75,14 @@ def create_trigger(
             help="Type-specific parameter as key:value (repeatable, e.g. --param interval:5000)",
         ),
     ] = None,
+    event_name: Annotated[
+        str | None,
+        typer.Option(
+            "--event-name",
+            help="Custom event name to match (required for --type customEvent). "
+            "Builds the customEventFilter the API requires.",
+        ),
+    ] = None,
 ) -> None:
     """Create a new trigger in the workspace.
 
@@ -83,13 +91,29 @@ def create_trigger(
     Examples:
         gtm trigger create --name "Timer 5s" --type timer --param interval:5000 --param limit:1
         gtm trigger create --name "Page View" --type pageview
+        gtm trigger create --name "Event - my_event" --type customEvent --event-name my_event
     """
     ctx = resolve_workspace_context()
+
+    if trigger_type == "customEvent" and not event_name:
+        print_error("--type customEvent requires --event-name")
+        raise typer.Exit(1)
 
     trigger_body: dict[str, Any] = {
         "name": name,
         "type": trigger_type,
     }
+
+    if trigger_type == "customEvent" and event_name:
+        trigger_body["customEventFilter"] = [
+            {
+                "type": "equals",
+                "parameter": [
+                    {"type": "template", "key": "arg0", "value": "{{_event}}"},
+                    {"type": "template", "key": "arg1", "value": event_name},
+                ],
+            }
+        ]
 
     if param:
         parameters = []
