@@ -76,6 +76,7 @@ Test files per module:
 - Audit commands (`audit-consent`, `audit-pixels`, `audit-params`, `audit-setup-deps`) analyze API data with heuristics and return categorized findings
 - Tag HTML is extracted via `_get_tag_html()` helper; pixel detection and event parameter extraction use compiled regex patterns in `tags.py`
 - GTM variable references in JS/HTML use `{{variableName}}` syntax — always pass these through verbatim
+- Tag-level Additional Consent Checks (`consentSettings`) are set via `--consent-type` (repeatable) on `tag create`/`tag update`, and cleared via `--clear-consent-type` on `tag update`. This is a separate top-level Tag field, distinct from `--param` (which only touches the `parameter` array).
 
 ## Available commands (current)
 

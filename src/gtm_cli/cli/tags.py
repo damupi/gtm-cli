@@ -1145,8 +1145,9 @@ def create_tag(
         list[str] | None,
         typer.Option(
             "--consent-type",
-            help="Additional Consent Check category (repeatable). One of: "
-            + ", ".join(VALID_CONSENT_TYPES),
+            help="Additional Consent Check category (repeatable). Sets the Tag's "
+            "top-level consentSettings field — NOT a tag parameter, do not use --param "
+            "for this. One of: " + ", ".join(VALID_CONSENT_TYPES),
         ),
     ] = None,
 ) -> None:
@@ -1257,7 +1258,9 @@ def update_tag(
         typer.Option(
             "--consent-type",
             help="Replace ALL Additional Consent Check categories (repeatable; clears "
-            "existing consent types). One of: " + ", ".join(VALID_CONSENT_TYPES),
+            "existing consent types). Sets the Tag's top-level consentSettings field — "
+            "NOT a tag parameter, do not use --param for this. One of: "
+            + ", ".join(VALID_CONSENT_TYPES),
         ),
     ] = None,
     clear_consent_type: Annotated[
