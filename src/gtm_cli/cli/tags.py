@@ -18,6 +18,35 @@ from gtm_cli.utils.output import (
     relative_time,
 )
 
+VALID_CONSENT_TYPES = (
+    "ad_storage",
+    "ad_user_data",
+    "ad_personalization",
+    "analytics_storage",
+    "functionality_storage",
+    "personalization_storage",
+    "security_storage",
+)
+
+
+def _build_consent_settings(consent_types: list[str]) -> dict[str, Any]:
+    """Build a Tag consentSettings block from a list of Consent Mode category names."""
+    invalid = [c for c in consent_types if c not in VALID_CONSENT_TYPES]
+    if invalid:
+        print_error(
+            f"Invalid consent type(s): {', '.join(invalid)}. "
+            f"Valid values: {', '.join(VALID_CONSENT_TYPES)}"
+        )
+        raise typer.Exit(1)
+
+    return {
+        "consentStatus": "needed",
+        "consentType": {
+            "type": "list",
+            "list": [{"type": "template", "value": c} for c in consent_types],
+        },
+    }
+
 
 def _get_firing_trigger_names(tag: dict[str, Any], trigger_names: dict[str, str]) -> str:
     """Get comma-separated list of firing trigger names for a tag."""
@@ -1112,6 +1141,14 @@ def create_tag(
         str | None,
         typer.Option("--notes", help="Notes describing the tag"),
     ] = None,
+    consent_type: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--consent-type",
+            help="Additional Consent Check category (repeatable). One of: "
+            + ", ".join(VALID_CONSENT_TYPES),
+        ),
+    ] = None,
 ) -> None:
     """Create a new tag in the workspace.
 
@@ -1120,6 +1157,8 @@ def create_tag(
     Examples:
         gtm tag create --name "My Tag" --html '<script>console.log("hi")</script>'
         gtm tag create --name "My Tag" --html-file pixel.html --trigger-id 295 --folder-id 409
+        gtm tag create --name "My Tag" --html-file pixel.html --consent-type ad_storage \\
+            --consent-type analytics_storage
     """
     ctx = resolve_workspace_context()
 
@@ -1149,6 +1188,9 @@ def create_tag(
 
     if notes is not None:
         tag_body["notes"] = notes
+
+    if consent_type:
+        tag_body["consentSettings"] = _build_consent_settings(consent_type)
 
     tag_body["tagFiringOption"] = "oncePerEvent" if once_per_event else "unlimited"
 
@@ -1210,6 +1252,18 @@ def update_tag(
         str | None,
         typer.Option("--notes", help="Set notes describing the tag (pass '' to clear)"),
     ] = None,
+    consent_type: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--consent-type",
+            help="Replace ALL Additional Consent Check categories (repeatable; clears "
+            "existing consent types). One of: " + ", ".join(VALID_CONSENT_TYPES),
+        ),
+    ] = None,
+    clear_consent_type: Annotated[
+        bool,
+        typer.Option("--clear-consent-type", help="Remove all Additional Consent Checks"),
+    ] = False,
 ) -> None:
     """Update an existing tag in the workspace.
 
@@ -1224,17 +1278,24 @@ def update_tag(
         gtm tag update 421 --param conversionId:12345
         gtm tag update 421 --notes "Workaround for consent gate; see WEBDATA-983"
         gtm tag update 421 --notes ''
+        gtm tag update 421 --consent-type ad_storage --consent-type analytics_storage
+        gtm tag update 421 --clear-consent-type
     """
     ctx = resolve_workspace_context()
 
     if (
-        all(v is None for v in (name, html, html_file, trigger_id, folder_id, param, notes))
+        all(
+            v is None
+            for v in (name, html, html_file, trigger_id, folder_id, param, notes, consent_type)
+        )
         and not clear_setup_tag
         and not clear_teardown_tag
+        and not clear_consent_type
     ):
         print_error(
             "No changes specified. Use --name, --html, --html-file, --trigger-id, "
-            "--folder-id, --param, --notes, --clear-setup-tag, or --clear-teardown-tag."
+            "--folder-id, --param, --notes, --consent-type, --clear-setup-tag, "
+            "--clear-teardown-tag, or --clear-consent-type."
         )
         raise typer.Exit(1)
 
@@ -1269,6 +1330,13 @@ def update_tag(
 
     if notes is not None:
         tag["notes"] = notes
+
+    if consent_type is not None:
+        tag["consentSettings"] = _build_consent_settings(consent_type)
+
+    if clear_consent_type and "consentSettings" in tag:
+        tag.pop("consentSettings")
+        print_info("Removed Additional Consent Checks")
 
     if clear_setup_tag and "setupTag" in tag:
         removed = [st.get("tagName", "unknown") for st in tag.pop("setupTag")]
