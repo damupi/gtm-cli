@@ -121,6 +121,9 @@ gtm tag compare --folder tiktok --folder facebook  # Compare across folders
 gtm tag create --name "My Tag" --html '<script>console.log("hi")</script>'
 gtm tag create --name "My Tag" --html-file pixel.html --trigger-id 295
 
+# Create a Community/Custom Template tag (cvt_*) with required template parameters
+gtm tag create --name "Intercom" --type cvt_TXZXG --param method:install
+
 # Update a tag
 gtm tag update 421 --html-file loader.html
 gtm tag update 420 --name "TikTok Stub v2"

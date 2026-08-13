@@ -209,6 +209,70 @@ class TestCreateTag:
         values = [c["value"] for c in body["consentSettings"]["consentType"]["list"]]
         assert values == ["ad_storage", "analytics_storage"]
 
+    def test_create_tag_with_param_sets_parameter_array(self, mock_ctx):
+        """--param on create populates the parameter array (e.g. required cvt_* fields)."""
+        mock_ctx.client.create_tag.return_value = {"tagId": "48", "name": "Intercom"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "tag",
+                    "create",
+                    "--name",
+                    "Intercom",
+                    "--type",
+                    "cvt_TXZXG",
+                    "--param",
+                    "method:install",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.create_tag.call_args.kwargs["tag_body"]
+        method_param = next(p for p in body["parameter"] if p["key"] == "method")
+        assert method_param["value"] == "install"
+
+    def test_create_tag_with_param_and_html_merges_parameter_array(self, mock_ctx):
+        """--param alongside --html appends to the html-derived parameter array."""
+        mock_ctx.client.create_tag.return_value = {"tagId": "49", "name": "Combo"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "tag",
+                    "create",
+                    "--name",
+                    "Combo",
+                    "--html",
+                    "<script>x</script>",
+                    "--param",
+                    "extraKey:extraValue",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.create_tag.call_args.kwargs["tag_body"]
+        assert next(p for p in body["parameter"] if p["key"] == "html")["value"] == (
+            "<script>x</script>"
+        )
+        assert next(p for p in body["parameter"] if p["key"] == "extraKey")["value"] == (
+            "extraValue"
+        )
+
+    def test_create_tag_with_invalid_param_format_exits_error(self, mock_ctx):
+        """--param without colon separator exits with code 1 on create."""
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["tag", "create", "--name", "Bad", "--type", "cvt_TXZXG", "--param", "nocolon"],
+            )
+
+        assert result.exit_code == 1
+        assert "Invalid param format" in result.output
+        mock_ctx.client.create_tag.assert_not_called()
+
     def test_create_tag_with_invalid_consent_type_exits_error(self, mock_ctx):
         """An unrecognized --consent-type value exits with code 1."""
         with patch(_PATCH_TARGET, return_value=mock_ctx):

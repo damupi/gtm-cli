@@ -67,6 +67,25 @@ Test files per module:
 - Google API libs have relaxed type checking (configured in pyproject.toml)
 - Pre-commit hooks: ruff lint/format + mypy + standard checks
 
+## Design Principle: the CLI must be self-explanatory
+
+Every new command or flag must be usable correctly by an agent reading `--help` alone —
+no external skill file, no wiki, no asking the user. Concretely, when adding or changing
+a flag:
+
+- Write the `help=` text to disambiguate from any similarly-named or easily-confused
+  flag (e.g. a top-level resource field vs. a `--param` entry) — say what it sets and,
+  if relevant, what it does *not* set.
+- Add a runnable example to the command's docstring/epilog for any non-trivial usage.
+- If a required capability is missing (e.g. `create` lacks a flag that `update` already
+  has), that is a bug — fix the CLI itself rather than documenting a workaround.
+- Validate inputs and fail with an actionable error instead of forwarding a bad value to
+  the API and surfacing its raw error.
+
+Do not rely on `docs/AI-USAGE.md` or the external `gtm-cli` skill to carry information
+that `--help` could carry directly — those exist only for behaviors that genuinely can't
+be expressed in `--help` (e.g. cross-cutting rules like global-flag ordering).
+
 ## Key Conventions
 
 - `tag_id`, `trigger_id`, `variable_id` etc. are strings (GTM API returns them as strings)

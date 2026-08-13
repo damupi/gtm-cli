@@ -48,6 +48,27 @@ def _build_consent_settings(consent_types: list[str]) -> dict[str, Any]:
     }
 
 
+def _parse_param_map(param: list[str]) -> dict[str, str]:
+    """Parse repeatable key:value --param strings into a dict, validating format."""
+    param_map: dict[str, str] = {}
+    for p in param:
+        if ":" not in p:
+            print_error(f"Invalid param format '{p}'. Use key:value")
+            raise typer.Exit(1)
+        k, v = p.split(":", 1)
+        param_map[k] = v
+    return param_map
+
+
+def _upsert_params(existing_params: list[dict[str, Any]], param_map: dict[str, str]) -> None:
+    """Upsert key:value pairs into a tag's parameter array in place."""
+    for entry in existing_params:
+        if entry.get("key") in param_map:
+            entry["value"] = param_map.pop(entry["key"])
+    for k, v in param_map.items():
+        existing_params.append({"type": "template", "key": k, "value": v})
+
+
 def _get_firing_trigger_names(tag: dict[str, Any], trigger_names: dict[str, str]) -> str:
     """Get comma-separated list of firing trigger names for a tag."""
     trigger_ids = tag.get("firingTriggerId", [])
@@ -1137,6 +1158,15 @@ def create_tag(
         bool,
         typer.Option("--once-per-event/--unlimited", help="Fire once per event (default: once)"),
     ] = True,
+    param: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--param",
+            help="Set a parameter as key:value (repeatable). Required for Community/Custom "
+            "Template tags (--type cvt_*) that have required template fields — the API "
+            "rejects create with no fallback to the template's own defaultValue.",
+        ),
+    ] = None,
     notes: Annotated[
         str | None,
         typer.Option("--notes", help="Notes describing the tag"),
@@ -1160,6 +1190,7 @@ def create_tag(
         gtm tag create --name "My Tag" --html-file pixel.html --trigger-id 295 --folder-id 409
         gtm tag create --name "My Tag" --html-file pixel.html --consent-type ad_storage \\
             --consent-type analytics_storage
+        gtm tag create --name "Intercom" --type cvt_TXZXG --param method:install
     """
     ctx = resolve_workspace_context()
 
@@ -1189,6 +1220,10 @@ def create_tag(
 
     if notes is not None:
         tag_body["notes"] = notes
+
+    if param:
+        param_map = _parse_param_map(param)
+        _upsert_params(tag_body.setdefault("parameter", []), param_map)
 
     if consent_type:
         tag_body["consentSettings"] = _build_consent_settings(consent_type)
@@ -1350,21 +1385,8 @@ def update_tag(
         print_info(f"Removed teardownTag dependencies: {', '.join(removed)}")
 
     if param:
-        param_map: dict[str, str] = {}
-        for p in param:
-            if ":" not in p:
-                print_error(f"Invalid param format '{p}'. Use key:value")
-                raise typer.Exit(1)
-            k, v = p.split(":", 1)
-            param_map[k] = v
-
-        existing_params: list[dict[str, Any]] = tag.setdefault("parameter", [])
-        for entry in existing_params:
-            if entry.get("key") in param_map:
-                entry["value"] = param_map.pop(entry["key"])
-        # Append any keys that were not found
-        for k, v in param_map.items():
-            existing_params.append({"type": "template", "key": k, "value": v})
+        param_map = _parse_param_map(param)
+        _upsert_params(tag.setdefault("parameter", []), param_map)
 
     result = ctx.client.update_tag(tag_id=tag_id, tag_body=tag, **ctx.api_kwargs)
     print_success(f"Updated tag '{result.get('name', tag_id)}' (ID: {tag_id})")
