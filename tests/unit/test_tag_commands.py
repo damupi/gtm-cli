@@ -182,6 +182,54 @@ class TestCreateTag:
         body = mock_ctx.client.create_tag.call_args.kwargs["tag_body"]
         assert body["notes"] == "Why this tag exists"
 
+    def test_create_tag_with_consent_type(self, mock_ctx):
+        """--consent-type sets consentSettings with consentStatus 'needed'."""
+        mock_ctx.client.create_tag.return_value = {"tagId": "47", "name": "Gated"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "tag",
+                    "create",
+                    "--name",
+                    "Gated",
+                    "--html",
+                    "<script>x</script>",
+                    "--consent-type",
+                    "ad_storage",
+                    "--consent-type",
+                    "analytics_storage",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.create_tag.call_args.kwargs["tag_body"]
+        assert body["consentSettings"]["consentStatus"] == "needed"
+        values = [c["value"] for c in body["consentSettings"]["consentType"]["list"]]
+        assert values == ["ad_storage", "analytics_storage"]
+
+    def test_create_tag_with_invalid_consent_type_exits_error(self, mock_ctx):
+        """An unrecognized --consent-type value exits with code 1."""
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "tag",
+                    "create",
+                    "--name",
+                    "Bad Consent",
+                    "--html",
+                    "<script>x</script>",
+                    "--consent-type",
+                    "not_a_real_type",
+                ],
+            )
+
+        assert result.exit_code == 1
+        assert "Invalid consent type" in result.output
+        mock_ctx.client.create_tag.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # update_tag
@@ -402,6 +450,59 @@ class TestUpdateTag:
         body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
         html_param = next(p for p in body["parameter"] if p["key"] == "html")
         assert html_param["value"] == "<script>new</script>"
+
+    def test_update_consent_type_sets_consent_settings(self, mock_ctx):
+        """--consent-type replaces consentSettings with the given categories."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = {**_EXISTING_TAG}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["tag", "update", "421", "--consent-type", "functionality_storage"],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        assert body["consentSettings"]["consentStatus"] == "needed"
+        values = [c["value"] for c in body["consentSettings"]["consentType"]["list"]]
+        assert values == ["functionality_storage"]
+
+    def test_update_invalid_consent_type_exits_error(self, mock_ctx):
+        """An unrecognized --consent-type value exits with code 1."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["tag", "update", "421", "--consent-type", "bogus"],
+            )
+
+        assert result.exit_code == 1
+        assert "Invalid consent type" in result.output
+        mock_ctx.client.update_tag.assert_not_called()
+
+    def test_update_clear_consent_type_removes_consent_settings(self, mock_ctx):
+        """--clear-consent-type removes an existing consentSettings block."""
+        tag = {
+            **_EXISTING_TAG,
+            "consentSettings": {
+                "consentStatus": "needed",
+                "consentType": {
+                    "type": "list",
+                    "list": [{"type": "template", "value": "ad_storage"}],
+                },
+            },
+        }
+        mock_ctx.client.get_tag.return_value = tag
+        mock_ctx.client.update_tag.return_value = {**_EXISTING_TAG}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--clear-consent-type"])
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        assert "consentSettings" not in body
 
 
 # ---------------------------------------------------------------------------

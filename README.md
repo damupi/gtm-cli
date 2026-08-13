@@ -125,6 +125,11 @@ gtm tag create --name "My Tag" --html-file pixel.html --trigger-id 295
 gtm tag update 421 --html-file loader.html
 gtm tag update 420 --name "TikTok Stub v2"
 
+# Set Additional Consent Checks (tag-level consentSettings)
+gtm tag create --name "My Tag" --html-file pixel.html --consent-type ad_storage --consent-type analytics_storage
+gtm tag update 421 --consent-type functionality_storage
+gtm tag update 421 --clear-consent-type
+
 # Pause/unpause tags
 gtm tag pause 304
 gtm tag unpause 298 302 303
