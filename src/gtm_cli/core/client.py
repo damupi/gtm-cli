@@ -843,6 +843,113 @@ class GTMClient:
             self._handle_error(e, f"revert variable {variable_id}")
             return {}
 
+    # Built-in variable methods
+    def list_built_in_variables(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List all enabled built-in variables in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            List of built-in variable dictionaries
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            response = (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .built_in_variables()
+                .list(parent=parent)
+                .execute()
+            )
+            return response.get("builtInVariable", [])
+        except HttpError as e:
+            self._handle_error(e, "list built-in variables")
+            return []
+
+    def enable_built_in_variables(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        types: list[str],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Enable one or more built-in variables in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            types: Built-in variable type enum values to enable (e.g. "pageUrl",
+                "analyticsSessionId")
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            List of created (enabled) built-in variable dictionaries
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            response = (
+                service.accounts()
+                .containers()
+                .workspaces()
+                .built_in_variables()
+                .create(parent=parent, type=types)
+                .execute()
+            )
+            return response.get("builtInVariable", [])
+        except HttpError as e:
+            self._handle_error(e, f"enable built-in variable(s) {', '.join(types)}")
+            return []
+
+    def disable_built_in_variables(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        types: list[str],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> None:
+        """Disable one or more built-in variables in a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            types: Built-in variable type enum values to disable
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = (
+            f"accounts/{account_id}/containers/{container_id}"
+            f"/workspaces/{workspace_id}/built_in_variables"
+        )
+        try:
+            service.accounts().containers().workspaces().built_in_variables().delete(
+                path=path, type=types
+            ).execute()
+        except HttpError as e:
+            self._handle_error(e, f"disable built-in variable(s) {', '.join(types)}")
+
     # Custom Template methods
     def list_templates(
         self,

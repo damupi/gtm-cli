@@ -1,5 +1,6 @@
 """Tests for trigger CLI commands (create, delete)."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -227,6 +228,161 @@ def test_update_trigger_no_changes(mock_ctx):
 
     assert result.exit_code == 1
     assert "No changes specified" in result.output
+
+
+# -- update_trigger --json-file tests --
+
+_EXISTING_TRIGGER_FULL = {
+    "triggerId": "295",
+    "name": "Checkout Click",
+    "type": "click",
+    "filter": [
+        {
+            "type": "equals",
+            "parameter": [
+                {"type": "template", "key": "arg0", "value": "{{Page Path}}"},
+                {"type": "template", "key": "arg1", "value": "/old-path"},
+            ],
+        }
+    ],
+    "customEventFilter": [
+        {
+            "type": "equals",
+            "parameter": [
+                {"type": "template", "key": "arg0", "value": "{{_event}}"},
+                {"type": "template", "key": "arg1", "value": "old_event"},
+            ],
+        }
+    ],
+    "waitForTags": {"type": "boolean", "value": "true"},
+}
+
+
+def test_update_trigger_json_file_replaces_filter_and_custom_event_filter(mock_ctx, tmp_path):
+    """--json-file replaces filter and customEventFilter arrays, preserving waitForTags."""
+    mock_ctx.client.list_triggers.return_value = [dict(_EXISTING_TRIGGER_FULL)]
+    mock_ctx.client.update_trigger.return_value = _EXISTING_TRIGGER_FULL
+
+    new_filter = [
+        {
+            "type": "equals",
+            "parameter": [
+                {"type": "template", "key": "arg0", "value": "{{Page Path}}"},
+                {"type": "template", "key": "arg1", "value": "/checkout"},
+            ],
+        }
+    ]
+    new_custom_event_filter = [
+        {
+            "type": "equals",
+            "parameter": [
+                {"type": "template", "key": "arg0", "value": "{{_event}}"},
+                {"type": "template", "key": "arg1", "value": "new_event"},
+            ],
+        }
+    ]
+
+    patch_file = tmp_path / "patch.json"
+    patch_file.write_text(
+        json.dumps({"filter": new_filter, "customEventFilter": new_custom_event_filter})
+    )
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "update", "295", "--json-file", str(patch_file)])
+
+    assert result.exit_code == 0, result.output
+    body = mock_ctx.client.update_trigger.call_args.kwargs["trigger_body"]
+    assert body["filter"] == new_filter
+    assert body["customEventFilter"] == new_custom_event_filter
+    # Omitted field preserved
+    assert body["waitForTags"] == {"type": "boolean", "value": "true"}
+
+
+def test_update_trigger_json_file_changes_type(mock_ctx, tmp_path):
+    """--json-file can change 'type' (e.g. click -> linkClick)."""
+    mock_ctx.client.list_triggers.return_value = [dict(_EXISTING_TRIGGER_FULL)]
+    mock_ctx.client.update_trigger.return_value = {**_EXISTING_TRIGGER_FULL, "type": "linkClick"}
+
+    patch_file = tmp_path / "patch.json"
+    patch_file.write_text(json.dumps({"type": "linkClick"}))
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "update", "295", "--json-file", str(patch_file)])
+
+    assert result.exit_code == 0, result.output
+    body = mock_ctx.client.update_trigger.call_args.kwargs["trigger_body"]
+    assert body["type"] == "linkClick"
+
+
+def test_update_trigger_json_file_then_name_applied_on_top(mock_ctx, tmp_path):
+    """JSON merge applied first, then --name on top."""
+    mock_ctx.client.list_triggers.return_value = [dict(_EXISTING_TRIGGER)]
+    mock_ctx.client.update_trigger.return_value = _EXISTING_TRIGGER
+
+    patch_file = tmp_path / "patch.json"
+    patch_file.write_text(json.dumps({"name": "From JSON", "type": "linkClick"}))
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(
+            app,
+            [
+                "trigger",
+                "update",
+                "295",
+                "--json-file",
+                str(patch_file),
+                "--name",
+                "From Flag",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    body = mock_ctx.client.update_trigger.call_args.kwargs["trigger_body"]
+    assert body["name"] == "From Flag"
+    assert body["type"] == "linkClick"
+
+
+def test_update_trigger_json_file_invalid_json_exits_error(mock_ctx, tmp_path):
+    """Malformed JSON exits non-zero with an actionable message."""
+    mock_ctx.client.list_triggers.return_value = [dict(_EXISTING_TRIGGER)]
+
+    bad_file = tmp_path / "bad.json"
+    bad_file.write_text("{not valid json")
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "update", "295", "--json-file", str(bad_file)])
+
+    assert result.exit_code != 0
+    assert "Invalid JSON" in result.output
+    mock_ctx.client.update_trigger.assert_not_called()
+
+
+def test_update_trigger_json_file_ignores_identity_fields_with_warning(mock_ctx, tmp_path):
+    """Identity fields in the patch are stripped with a warning, not applied."""
+    mock_ctx.client.list_triggers.return_value = [dict(_EXISTING_TRIGGER)]
+    mock_ctx.client.update_trigger.return_value = _EXISTING_TRIGGER
+
+    patch_file = tmp_path / "patch.json"
+    patch_file.write_text(
+        json.dumps(
+            {
+                "triggerId": "999",
+                "accountId": "a999",
+                "fingerprint": "12345",
+                "name": "Safe Rename",
+            }
+        )
+    )
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "update", "295", "--json-file", str(patch_file)])
+
+    assert result.exit_code == 0, result.output
+    assert "Ignoring identity field" in result.output
+    body = mock_ctx.client.update_trigger.call_args.kwargs["trigger_body"]
+    assert body["triggerId"] == "295"
+    assert "accountId" not in body
+    assert body["name"] == "Safe Rename"
 
 
 # -- delete_trigger tests --

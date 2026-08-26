@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import typer
 
-from gtm_cli.utils.output import print_error, print_info
+from gtm_cli.utils.output import print_error, print_info, print_warning
 
 if TYPE_CHECKING:
     from gtm_cli.cli.main import State
@@ -148,6 +150,68 @@ def resolve_container_id(state: State, client: GTMClient, account_id: str) -> st
     for c in containers:
         print_error(f"  {c.get('publicId')}: {c.get('name')}")
     raise typer.Exit(1)
+
+
+def load_json_merge_patch(json_file: Path, identity_fields: frozenset[str]) -> dict[str, Any]:
+    """Read and validate a --json-file merge patch.
+
+    The file must contain a single JSON object with only the fields to change.
+    Identity fields the user must not patch (accountId, containerId, workspaceId,
+    tagId/triggerId, path, fingerprint) are stripped with a warning rather than
+    causing an error, since they're commonly present if the file was produced by
+    editing a `gtm tag get`/`gtm trigger get` dump.
+
+    Args:
+        json_file: Path to the JSON file to read
+        identity_fields: Top-level keys to strip (with a warning) if present
+
+    Returns:
+        The parsed patch dict, with identity fields removed
+
+    Raises:
+        typer.Exit: If the file can't be read, isn't valid JSON, or the top-level
+            value isn't a JSON object
+    """
+    try:
+        text = json_file.read_text()
+    except OSError as e:
+        print_error(f"Cannot read --json-file '{json_file}': {e}")
+        raise typer.Exit(1) from e
+
+    try:
+        patch = json.loads(text)
+    except json.JSONDecodeError as e:
+        print_error(f"Invalid JSON in --json-file '{json_file}': {e}")
+        raise typer.Exit(1) from e
+
+    if not isinstance(patch, dict):
+        print_error(
+            f"--json-file '{json_file}' must contain a JSON object at the top level "
+            f"(got {type(patch).__name__})"
+        )
+        raise typer.Exit(1)
+
+    ignored = sorted(k for k in identity_fields if k in patch)
+    if ignored:
+        print_warning(
+            f"Ignoring identity field(s) in --json-file (not patchable): {', '.join(ignored)}"
+        )
+        for key in ignored:
+            patch.pop(key)
+
+    return patch
+
+
+def apply_json_merge_patch(entity: dict[str, Any], patch: dict[str, Any]) -> None:
+    """Merge a JSON patch onto an entity in place.
+
+    Only the top-level fields present in `patch` are changed. Arrays (parameter,
+    filter, customEventFilter, firingTriggerId, etc.) fully REPLACE the existing
+    array — there is no per-element merge. Fields omitted from `patch` are left
+    untouched on `entity`.
+    """
+    for key, value in patch.items():
+        entity[key] = value
 
 
 def resolve_workspace_id(

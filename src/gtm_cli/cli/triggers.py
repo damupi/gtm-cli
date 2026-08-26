@@ -1,14 +1,23 @@
 """Trigger CLI commands."""
 
+from pathlib import Path
 from typing import Annotated, Any
 
 import typer
 
-from gtm_cli.cli.helpers import resolve_workspace_context
+from gtm_cli.cli.helpers import (
+    apply_json_merge_patch,
+    load_json_merge_patch,
+    resolve_workspace_context,
+)
 from gtm_cli.utils.output import confirm, output, print_error, print_success
 
 # Timer triggers use top-level fields, not the parameter array
 _TIMER_TOP_LEVEL_KEYS = frozenset({"interval", "limit", "eventName"})
+
+TRIGGER_IDENTITY_FIELDS = frozenset(
+    {"accountId", "containerId", "workspaceId", "triggerId", "path", "fingerprint"}
+)
 
 app = typer.Typer(
     help="""Manage GTM triggers.
@@ -147,19 +156,51 @@ def update_trigger(
         str | None,
         typer.Option("--name", "-n", help="New trigger name"),
     ] = None,
+    json_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--json-file",
+            help="Merge fields from a JSON file onto the trigger (top-level merge patch; "
+            "applied BEFORE --name, which is applied on top if also given). Include only "
+            "the fields you want to change. Arrays (filter, customEventFilter, "
+            "autoEventFilter, waitForTags, etc.) fully REPLACE the existing array — there "
+            "is no per-element merge. Omitted fields (e.g. blocking/firing triggers) are "
+            "preserved. Can also change 'type' (e.g. click -> linkClick). Identity fields "
+            "(accountId, containerId, workspaceId, triggerId, path, fingerprint) are "
+            "ignored with a warning if present.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
 ) -> None:
     """Update an existing trigger in the workspace.
 
     Fetches the current trigger, applies changes, and saves. Only specified
     fields are changed; everything else is preserved.
 
+    If --json-file is combined with --name, the JSON merge is applied first,
+    then --name on top of it.
+
     Examples:
         gtm trigger update 295 --name "All Pages - New"
+
+        # Replace the filter array via JSON merge (patch.json contains only filter)
+        # {"filter": [{"type": "equals", "parameter": [
+        #   {"type": "template", "key": "arg0", "value": "{{Page Path}}"},
+        #   {"type": "template", "key": "arg1", "value": "/checkout"}]}]}
+        gtm trigger update 295 --json-file patch.json
+
+        # Change type from click to linkClick and replace customEventFilter
+        # {"type": "linkClick", "customEventFilter": [...]}
+        gtm trigger update 295 --json-file patch.json
+
+        # Combine: JSON merge for filter, then rename on top
+        gtm trigger update 295 --json-file patch.json --name "Checkout - New"
     """
     ctx = resolve_workspace_context()
 
-    if not name:
-        print_error("No changes specified. Use --name to rename the trigger.")
+    if not name and json_file is None:
+        print_error("No changes specified. Use --json-file and/or --name to update the trigger.")
         raise typer.Exit(1)
 
     triggers = ctx.client.list_triggers(**ctx.api_kwargs)
@@ -167,6 +208,11 @@ def update_trigger(
     if not trigger:
         print_error(f"Trigger '{trigger_id}' not found")
         raise typer.Exit(1)
+
+    # Apply JSON merge patch first, then flag-based changes on top
+    if json_file is not None:
+        patch = load_json_merge_patch(json_file, TRIGGER_IDENTITY_FIELDS)
+        apply_json_merge_patch(trigger, patch)
 
     if name:
         trigger["name"] = name

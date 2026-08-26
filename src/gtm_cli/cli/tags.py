@@ -6,7 +6,13 @@ from typing import Annotated, Any
 
 import typer
 
-from gtm_cli.cli.helpers import WorkspaceContext, add_authuser, resolve_workspace_context
+from gtm_cli.cli.helpers import (
+    WorkspaceContext,
+    add_authuser,
+    apply_json_merge_patch,
+    load_json_merge_patch,
+    resolve_workspace_context,
+)
 from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import (
     confirm,
@@ -16,6 +22,10 @@ from gtm_cli.utils.output import (
     print_success,
     print_warning,
     relative_time,
+)
+
+TAG_IDENTITY_FIELDS = frozenset(
+    {"accountId", "containerId", "workspaceId", "tagId", "path", "fingerprint"}
 )
 
 VALID_CONSENT_TYPES = (
@@ -1302,11 +1312,31 @@ def update_tag(
         bool,
         typer.Option("--clear-consent-type", help="Remove all Additional Consent Checks"),
     ] = False,
+    json_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--json-file",
+            help="Merge fields from a JSON file onto the tag (top-level merge patch; applied "
+            "BEFORE any other flags below, which are applied on top). Include only the fields "
+            "you want to change. Arrays (parameter, firingTriggerId, setupTag, etc.) fully "
+            "REPLACE the existing array — there is no per-element merge. Omitted fields "
+            "(e.g. consentSettings, firingTriggerId) are preserved. Identity fields (accountId, "
+            "containerId, workspaceId, tagId, path, fingerprint) are ignored with a warning if "
+            "present. Unlike --param (which upserts single key:value entries into the existing "
+            "parameter array) or --param-file (not available on tags — see 'gtm variable "
+            "update --param-file'), --json-file replaces whole top-level fields wholesale.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
 ) -> None:
     """Update an existing tag in the workspace.
 
     Fetches the current tag, applies changes, and saves. Only specified
     fields are changed; everything else is preserved.
+
+    If --json-file is combined with other flags (--name, --param, etc.), the
+    JSON merge is applied first, then the flag-based changes on top of it.
 
     Examples:
         gtm tag update 421 --html-file loader.html
@@ -1318,20 +1348,38 @@ def update_tag(
         gtm tag update 421 --notes ''
         gtm tag update 421 --consent-type ad_storage --consent-type analytics_storage
         gtm tag update 421 --clear-consent-type
+
+        # Replace consentSettings via JSON merge (patch.json contains only the field to change)
+        # {"consentSettings": {"consentStatus": "needed", "consentType": {"type": "list",
+        #  "list": [{"type": "template", "value": "ad_storage"}]}}}
+        gtm tag update 421 --json-file patch.json
+
+        # Combine: JSON merge for consentSettings, then --name on top
+        gtm tag update 421 --json-file patch.json --name "Renamed after merge"
     """
     ctx = resolve_workspace_context()
 
     if (
         all(
             v is None
-            for v in (name, html, html_file, trigger_id, folder_id, param, notes, consent_type)
+            for v in (
+                name,
+                html,
+                html_file,
+                trigger_id,
+                folder_id,
+                param,
+                notes,
+                consent_type,
+                json_file,
+            )
         )
         and not clear_setup_tag
         and not clear_teardown_tag
         and not clear_consent_type
     ):
         print_error(
-            "No changes specified. Use --name, --html, --html-file, --trigger-id, "
+            "No changes specified. Use --json-file, --name, --html, --html-file, --trigger-id, "
             "--folder-id, --param, --notes, --consent-type, --clear-setup-tag, "
             "--clear-teardown-tag, or --clear-consent-type."
         )
@@ -1345,6 +1393,11 @@ def update_tag(
     except ResourceNotFoundError:
         print_error(f"Tag '{tag_id}' not found")
         raise typer.Exit(1) from None
+
+    # Apply JSON merge patch first, then flag-based changes on top
+    if json_file is not None:
+        patch = load_json_merge_patch(json_file, TAG_IDENTITY_FIELDS)
+        apply_json_merge_patch(tag, patch)
 
     # Apply changes
     if name is not None:
