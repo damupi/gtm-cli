@@ -13,7 +13,14 @@ from gtm_cli.cli.helpers import (
 )
 from gtm_cli.cli.main import get_state
 from gtm_cli.core.client import get_client
-from gtm_cli.utils.output import output, print_error, print_info, print_success, print_warning
+from gtm_cli.utils.output import (
+    OutputFormat,
+    output,
+    print_error,
+    print_info,
+    print_success,
+    print_warning,
+)
 
 app = typer.Typer(
     help="""Manage GTM workspaces.
@@ -475,6 +482,62 @@ def delete_workspace(
         raise typer.Exit(1) from None
 
     print_success(f"Deleted workspace '{workspace_name}' (ID: {workspace_id})")
+
+
+@app.command("quick-preview")
+def workspace_quick_preview() -> None:
+    """Compile the workspace server-side and report validation errors.
+
+    Calls the GTM API's quick_preview endpoint, which builds a simulated
+    container version from all current workspace entities and returns
+    compile/sync feedback. This does NOT create a version and does NOT
+    open a browser — for that, use 'gtm workspace preview' (which just
+    builds a Tag Assistant URL) or 'gtm workspace publish' (which creates
+    and publishes a real version).
+
+    Exits with code 1 if the workspace fails to compile, so it can gate
+    CI/scripts before a real publish.
+
+    Example: gtm workspace quick-preview
+    Example: gtm workspace quick-preview -f json
+    """
+    ctx = resolve_workspace_context()
+
+    result = ctx.client.quick_preview_workspace(**ctx.api_kwargs)
+
+    if ctx.state.output_format in (OutputFormat.JSON, OutputFormat.YAML):
+        output(result, fmt=ctx.state.output_format)
+        if result.get("compilerError"):
+            raise typer.Exit(1)
+        return
+
+    compiler_error = bool(result.get("compilerError"))
+    sync_status = result.get("syncStatus", {})
+    merge_conflict = bool(sync_status.get("mergeConflict"))
+    sync_error = bool(sync_status.get("syncError"))
+
+    version = result.get("containerVersion", {})
+    summary = {
+        "compile": "FAILED" if compiler_error else "OK",
+        "merge_conflict": merge_conflict,
+        "sync_error": sync_error,
+        "tags": len(version.get("tag", [])),
+        "triggers": len(version.get("trigger", [])),
+        "variables": len(version.get("variable", [])),
+    }
+
+    if compiler_error:
+        print_error("Workspace failed to compile.")
+    else:
+        print_success("Workspace compiled successfully.")
+
+    if merge_conflict or sync_error:
+        print_warning("Sync issue detected (merge conflict or sync error) — see details below.")
+
+    output(summary, fmt=ctx.state.output_format, title="Quick Preview")
+
+    if compiler_error:
+        raise typer.Exit(1)
 
 
 @app.command("preview")
