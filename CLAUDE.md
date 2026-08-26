@@ -96,6 +96,7 @@ be expressed in `--help` (e.g. cross-cutting rules like global-flag ordering).
 - Tag HTML is extracted via `_get_tag_html()` helper; pixel detection and event parameter extraction use compiled regex patterns in `tags.py`
 - GTM variable references in JS/HTML use `{{variableName}}` syntax — always pass these through verbatim
 - Tag-level Additional Consent Checks (`consentSettings`) are set via `--consent-type` (repeatable) on `tag create`/`tag update`, and cleared via `--clear-consent-type` on `tag update`. This is a separate top-level Tag field, distinct from `--param` (which only touches the `parameter` array).
+- `tag update --json-file PATH` and `trigger update --json-file PATH` apply a top-level merge patch: the JSON file need only contain the fields to change, arrays (`parameter`, `filter`, `customEventFilter`, `firingTriggerId`, etc.) REPLACE the existing array wholesale, and omitted fields are preserved. Identity fields (`accountId`, `containerId`, `workspaceId`, `tagId`/`triggerId`, `path`, `fingerprint`) in the file are ignored with a warning rather than erroring. When combined with other update flags, the JSON merge is applied first and flag-based changes are applied on top of it.
 
 ## Available commands (current)
 
@@ -104,11 +105,12 @@ be expressed in `--help` (e.g. cross-cutting rules like global-flag ordering).
 | `gtm account` | `list`, `get` |
 | `gtm container` | `list`, `get` |
 | `gtm workspace` | `list`, `get`, `status`, `create`, `delete`, `preview`, `quick-preview`, `publish` |
-| `gtm tag` | `list`, `get`, `search`, `create`, `update`, `delete`, `revert`, `audit-consent`, `audit-pixels`, `audit-params`, `audit-setup-deps` |
+| `gtm tag` | `list`, `get`, `search`, `create`, `update` (supports `--json-file` for a top-level merge patch, applied before other flags), `delete`, `revert`, `audit-consent`, `audit-pixels`, `audit-params`, `audit-setup-deps` |
 | `gtm template` | `list`, `get`, `create`, `update`, `delete` |
-| `gtm trigger` | `list`, `get`, `create`, `update`, `delete`, `revert` |
+| `gtm trigger` | `list`, `get`, `create`, `update` (supports `--json-file`, same merge semantics as `tag update`; can also change `type`), `delete`, `revert` |
 | `gtm variable` | `list`, `get`, `types`, `create`, `update`, `delete`, `revert` |
 | `gtm version` | `list`, `get`, `publish`, `revert` |
+| `gtm built-in-variable` | `list`, `enable`, `disable` |
 
 ## Multi-line JS/HTML parameters
 

@@ -128,6 +128,11 @@ gtm tag create --name "Intercom" --type cvt_TXZXG --param method:install
 gtm tag update 421 --html-file loader.html
 gtm tag update 420 --name "TikTok Stub v2"
 
+# Update a tag from a JSON merge patch (top-level fields only; arrays REPLACE wholesale)
+# patch.json: {"consentSettings": {"consentStatus": "needed", "consentType": {...}}}
+gtm tag update 421 --json-file patch.json
+gtm tag update 421 --json-file patch.json --name "Renamed after merge"  # JSON merge, then flags on top
+
 # Set Additional Consent Checks (tag-level consentSettings)
 gtm tag create --name "My Tag" --html-file pixel.html --consent-type ad_storage --consent-type analytics_storage
 gtm tag update 421 --consent-type functionality_storage
@@ -153,8 +158,34 @@ gtm tag audit-setup-deps         # Find broken setup/teardown dependencies
 gtm trigger create --name "Timer 5s" --type timer --param interval:5000 --param limit:1
 gtm trigger create --name "Page View" --type pageview
 
+# Rename a trigger
+gtm trigger update 295 --name "All Pages - New"
+
+# Update a trigger from a JSON merge patch (top-level fields only; arrays REPLACE wholesale)
+# patch.json: {"filter": [...]}  -- replaces the filter array, preserves everything else
+gtm trigger update 295 --json-file patch.json
+gtm trigger update 295 --json-file patch.json --name "Renamed after merge"  # JSON merge, then --name
+
+# Change a trigger's type (e.g. click -> linkClick) via JSON merge
+# patch.json: {"type": "linkClick", "customEventFilter": [...]}
+gtm trigger update 295 --json-file patch.json
+
 # Delete a trigger
 gtm trigger delete 312
+```
+
+### Built-In Variables
+
+```bash
+# List currently enabled built-in variables
+gtm built-in-variable list
+
+# Enable one or more built-in variables (use exact camelCase API enum values)
+gtm built-in-variable enable analyticsSessionId
+gtm built-in-variable enable analyticsSessionId analyticsSessionNumber analyticsClientId
+
+# Disable a built-in variable
+gtm built-in-variable disable clickUrl
 ```
 
 ### Workspace Management
@@ -324,7 +355,7 @@ Remember to grant the service account access in Tag Manager:
 | `gtm tag search` | Search tags by name, type, or trigger |
 | `gtm tag compare` | Compare tags side by side (by ID, trigger, or folder) |
 | `gtm tag create` | Create a new tag |
-| `gtm tag update` | Update an existing tag |
+| `gtm tag update` | Update an existing tag (supports `--json-file` for a top-level merge patch) |
 | `gtm tag pause` | Pause one or more tags |
 | `gtm tag unpause` | Unpause one or more tags |
 | `gtm tag delete` | Delete a tag |
@@ -340,9 +371,13 @@ Remember to grant the service account access in Tag Manager:
 | `gtm trigger list` | List triggers |
 | `gtm trigger get` | Get trigger details |
 | `gtm trigger create` | Create a new trigger |
+| `gtm trigger update` | Update an existing trigger (supports `--json-file` for a top-level merge patch; can change `type`) |
 | `gtm trigger delete` | Delete a trigger |
 | `gtm variable list` | List variables |
 | `gtm variable get` | Get variable details |
+| `gtm built-in-variable list` | List enabled built-in variables |
+| `gtm built-in-variable enable` | Enable one or more built-in variables |
+| `gtm built-in-variable disable` | Disable one or more built-in variables |
 | `gtm version list` | List container versions (with publish date) |
 | `gtm version get` | Get full version details (all tags, triggers, variables) |
 | `gtm version diff` | Show what changed between two published versions |

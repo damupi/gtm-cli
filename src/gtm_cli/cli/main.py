@@ -198,6 +198,7 @@ def register_commands() -> None:
     """Register all subcommands."""
     from gtm_cli.cli import accounts as accounts_cli
     from gtm_cli.cli import auth as auth_cli
+    from gtm_cli.cli import built_in_variables as built_in_variables_cli
     from gtm_cli.cli import containers as containers_cli
     from gtm_cli.cli import init as init_cli
     from gtm_cli.cli import profile as profile_cli
@@ -223,6 +224,7 @@ def register_commands() -> None:
     app.add_typer(triggers_cli.app, name="trigger")
     app.add_typer(variables_cli.app, name="variable")
     app.add_typer(versions_cli.app, name="version")
+    app.add_typer(built_in_variables_cli.app, name="built-in-variable")
 
 
 # Register commands on import

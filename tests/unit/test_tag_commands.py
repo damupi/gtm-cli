@@ -1,5 +1,6 @@
 """Tests for tag CLI commands (create, update, delete, pause, unpause)."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -410,6 +411,149 @@ class TestUpdateTag:
 
         assert result.exit_code == 1
         assert "No changes specified" in result.output
+
+    def test_update_json_file_replaces_nested_parameter_preserves_omitted(self, mock_ctx, tmp_path):
+        """--json-file replaces the userProperties param and preserves consentSettings/firingTriggerId."""
+        existing_tag = {
+            **_EXISTING_TAG,
+            "consentSettings": {"consentStatus": "needed"},
+            "firingTriggerId": ["295", "296"],
+        }
+        mock_ctx.client.get_tag.return_value = dict(existing_tag)
+        mock_ctx.client.update_tag.return_value = existing_tag
+
+        patch_file = tmp_path / "patch.json"
+        patch_file.write_text(
+            json.dumps(
+                {
+                    "parameter": [
+                        {
+                            "type": "list",
+                            "key": "userProperties",
+                            "list": [
+                                {
+                                    "type": "map",
+                                    "map": [
+                                        {"type": "template", "key": "name", "value": "plan"},
+                                        {"type": "template", "key": "value", "value": "pro"},
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                }
+            )
+        )
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--json-file", str(patch_file)])
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        # New parameter array fully replaces the old one
+        assert body["parameter"] == [
+            {
+                "type": "list",
+                "key": "userProperties",
+                "list": [
+                    {
+                        "type": "map",
+                        "map": [
+                            {"type": "template", "key": "name", "value": "plan"},
+                            {"type": "template", "key": "value", "value": "pro"},
+                        ],
+                    }
+                ],
+            }
+        ]
+        # Omitted fields preserved
+        assert body["consentSettings"] == {"consentStatus": "needed"}
+        assert body["firingTriggerId"] == ["295", "296"]
+
+    def test_update_json_file_then_flags_applied_on_top(self, mock_ctx, tmp_path):
+        """--json-file merge is applied first, then --name flag on top."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = _EXISTING_TAG
+
+        patch_file = tmp_path / "patch.json"
+        patch_file.write_text(json.dumps({"name": "From JSON", "notes": "from json"}))
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "tag",
+                    "update",
+                    "421",
+                    "--json-file",
+                    str(patch_file),
+                    "--name",
+                    "From Flag",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        assert body["name"] == "From Flag"
+        assert body["notes"] == "from json"
+
+    def test_update_json_file_invalid_json_exits_error(self, mock_ctx, tmp_path):
+        """Malformed JSON in --json-file exits non-zero with an actionable message."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text("{not valid json")
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--json-file", str(bad_file)])
+
+        assert result.exit_code != 0
+        assert "Invalid JSON" in result.output
+        assert bad_file.name in result.output
+        mock_ctx.client.update_tag.assert_not_called()
+
+    def test_update_json_file_non_object_top_level_exits_error(self, mock_ctx, tmp_path):
+        """A JSON array (not object) at the top level exits non-zero."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+
+        bad_file = tmp_path / "list.json"
+        bad_file.write_text(json.dumps([1, 2, 3]))
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--json-file", str(bad_file)])
+
+        assert result.exit_code != 0
+        assert "JSON object" in result.output
+        mock_ctx.client.update_tag.assert_not_called()
+
+    def test_update_json_file_ignores_identity_fields_with_warning(self, mock_ctx, tmp_path):
+        """Identity fields in the patch are stripped (not applied) with a warning, not an error."""
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+        mock_ctx.client.update_tag.return_value = _EXISTING_TAG
+
+        patch_file = tmp_path / "patch.json"
+        patch_file.write_text(
+            json.dumps(
+                {
+                    "tagId": "999",
+                    "accountId": "a999",
+                    "containerId": "c999",
+                    "workspaceId": "ws999",
+                    "fingerprint": "12345",
+                    "notes": "safe field",
+                }
+            )
+        )
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--json-file", str(patch_file)])
+
+        assert result.exit_code == 0, result.output
+        assert "Ignoring identity field" in result.output
+        body = mock_ctx.client.update_tag.call_args.kwargs["tag_body"]
+        assert body["tagId"] == "421"  # untouched, not overwritten with "999"
+        assert "accountId" not in body
+        assert body["notes"] == "safe field"
 
     def test_update_tag_not_found(self, mock_ctx):
         """Non-existent tag exits with code 1."""
