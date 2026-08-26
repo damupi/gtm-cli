@@ -86,6 +86,9 @@ Do not rely on `docs/AI-USAGE.md` or the external `gtm-cli` skill to carry infor
 that `--help` could carry directly — those exist only for behaviors that genuinely can't
 be expressed in `--help` (e.g. cross-cutting rules like global-flag ordering).
 
+Rationale and the agent-friction cases that motivated this principle:
+[docs/FEATURE-self-documenting-cli.md](docs/FEATURE-self-documenting-cli.md).
+
 ## Key Conventions
 
 - `tag_id`, `trigger_id`, `variable_id` etc. are strings (GTM API returns them as strings)
