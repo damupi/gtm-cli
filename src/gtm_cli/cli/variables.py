@@ -29,11 +29,19 @@ Example: gtm variable list
 # GTM variable type registry — used by `gtm variable types`
 _VARIABLE_TYPES: list[dict[str, str]] = [
     {"type": "v", "name": "Data Layer Variable", "key_params": "name, dataLayerVersion"},
-    {"type": "u", "name": "URL", "key_params": "component (PATH|HOST|QUERY|FRAGMENT|PORT|PROTOCOL|FULL_URL)"},
+    {
+        "type": "u",
+        "name": "URL",
+        "key_params": "component (PATH|HOST|QUERY|FRAGMENT|PORT|PROTOCOL|FULL_URL)",
+    },
     {"type": "k", "name": "First-Party Cookie", "key_params": "name"},
     {"type": "c", "name": "Constant", "key_params": "value"},
     {"type": "j", "name": "JavaScript Variable", "key_params": "name"},
-    {"type": "jsm", "name": "Custom JavaScript", "key_params": "javascript  ← always use --param-file"},
+    {
+        "type": "jsm",
+        "name": "Custom JavaScript",
+        "key_params": "javascript  ← always use --param-file",
+    },
     {"type": "e", "name": "Auto-Event Variable", "key_params": "varType"},
     {"type": "r", "name": "HTTP Referrer", "key_params": "component"},
     {"type": "smm", "name": "Lookup Table", "key_params": "input, map"},
@@ -237,8 +245,15 @@ def create_variable(
 
     variable_id = result.get("variableId", "")
     file_hint = (
-        "  [" + ", ".join(f"{k} ← {Path(pf.split(':', 1)[1]).name}" for pf in (param_file or []) for k in [pf.split(":", 1)[0]]) + "]"
-        if param_file else ""
+        "  ["
+        + ", ".join(
+            f"{k} ← {Path(pf.split(':', 1)[1]).name}"
+            for pf in (param_file or [])
+            for k in [pf.split(":", 1)[0]]
+        )
+        + "]"
+        if param_file
+        else ""
     )
     print_success(f"Created variable '{name}' (ID: {variable_id}){file_hint}")
     review_url = _gtm_variable_url(ctx, variable_id)
@@ -252,7 +267,9 @@ def update_variable(
     name: Annotated[str | None, typer.Option("--name", "-n", help="New variable name")] = None,
     variable_type: Annotated[
         str | None,
-        typer.Option("--type", "-t", help="New variable type. Run 'gtm variable types' for options."),
+        typer.Option(
+            "--type", "-t", help="New variable type. Run 'gtm variable types' for options."
+        ),
     ] = None,
     param: Annotated[
         list[str] | None,
@@ -364,8 +381,13 @@ def update_variable(
 
     final_name = updated_body.get("name", variable_name)
     file_hint = (
-        "  [" + ", ".join(f"{pf.split(':', 1)[0]} ← {Path(pf.split(':', 1)[1]).name}" for pf in (param_file or [])) + "]"
-        if param_file else ""
+        "  ["
+        + ", ".join(
+            f"{pf.split(':', 1)[0]} ← {Path(pf.split(':', 1)[1]).name}" for pf in (param_file or [])
+        )
+        + "]"
+        if param_file
+        else ""
     )
     print_success(f"Updated variable '{final_name}' (ID: {variable_id}){file_hint}")
     review_url = _gtm_variable_url(ctx, variable_id)

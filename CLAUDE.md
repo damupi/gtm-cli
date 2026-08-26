@@ -139,3 +139,20 @@ https://tagmanager.google.com/#/container/accounts/{accountId}/containers/{conta
 ```
 
 `containerId` in URLs is the numeric ID, not `GTM-XXXX`.
+
+## Release / merge workflow: keep the gtm-cli skill in sync
+
+The external `gtm-cli` Claude skill (`~/.claude/skills/gtm-cli/`) documents this CLI for
+agents and is hand-curated — it does not update itself. See
+[docs/SKILL-MAINTENANCE.md](docs/SKILL-MAINTENANCE.md) for the full policy and review
+checklist.
+
+**When a branch that changes the CLI is merged into `main`:**
+
+1. Inform the user that the gtm-cli skill is going to be updated with the new
+   implementations.
+2. Review the skill against the merged changes (new/removed commands, new/changed
+   flags, changed behavior) and update `SKILL.md` and the affected
+   `references/*.md` files.
+3. Also update this file's "Available commands" table and README.md if the command
+   surface changed.
