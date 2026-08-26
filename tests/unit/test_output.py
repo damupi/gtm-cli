@@ -37,7 +37,11 @@ def test_format_json_multiline_js_is_valid():
     jsm variables (literal newlines in the JS body instead of escaped \\n).
     """
     js_body = "function() {\n  var x = {{Page URL}};\n  return x || 'default';\n}"
-    data = {"variableId": "495", "name": "CJS - Example", "parameter": [{"key": "javascript", "value": js_body}]}
+    data = {
+        "variableId": "495",
+        "name": "CJS - Example",
+        "parameter": [{"key": "javascript", "value": js_body}],
+    }
     result = format_json(data)
     parsed = json.loads(result)  # must not raise
     assert parsed["parameter"][0]["value"] == js_body
@@ -49,7 +53,12 @@ def test_output_json_is_machine_parseable(capsys):
     Rich's console.print() treats square brackets as markup tags, which corrupts
     JSON arrays. output() must use plain print() for JSON format.
     """
-    data = [{"variableId": "1", "parameter": [{"key": "javascript", "value": "function() {\n  return true;\n}"}]}]
+    data = [
+        {
+            "variableId": "1",
+            "parameter": [{"key": "javascript", "value": "function() {\n  return true;\n}"}],
+        }
+    ]
     with patch("gtm_cli.utils.output.is_interactive", return_value=False):
         output(data, fmt=OutputFormat.JSON)
     captured = capsys.readouterr()
