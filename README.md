@@ -183,6 +183,10 @@ gtm workspace publish --name "v1.2" --notes "Fixed consent settings"
 # Open workspace preview in browser
 gtm workspace preview
 gtm -u 1 workspace preview       # With authuser for multi-account sessions
+
+# Validate the workspace compiles server-side, without creating a version
+gtm workspace quick-preview
+gtm workspace quick-preview -f json   # Full API response, exits 1 on compilerError
 ```
 
 ### Versions
@@ -314,6 +318,7 @@ Remember to grant the service account access in Tag Manager:
 | `gtm workspace status` | Show pending changes |
 | `gtm workspace publish` | Create version and publish |
 | `gtm workspace preview` | Open workspace preview in browser |
+| `gtm workspace quick-preview` | Validate workspace compiles server-side (no version created) |
 | `gtm tag list` | List tags (with tag ID, type, triggers, folder, modified) |
 | `gtm tag get` | Get details of one or more tags |
 | `gtm tag search` | Search tags by name, type, or trigger |

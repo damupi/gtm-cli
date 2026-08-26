@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
+from gtm_cli.cli.helpers import WorkspaceContext
 from gtm_cli.cli.main import State, app
 from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import OutputFormat
@@ -15,6 +16,7 @@ _PATCH_CLIENT = "gtm_cli.cli.workspaces.get_client"
 _PATCH_STATE = "gtm_cli.cli.workspaces.get_state"
 _PATCH_RESOLVE_ACCOUNT = "gtm_cli.cli.workspaces.resolve_account_id"
 _PATCH_RESOLVE_CONTAINER = "gtm_cli.cli.workspaces.resolve_container_id"
+_PATCH_RESOLVE_CONTEXT = "gtm_cli.cli.workspaces.resolve_workspace_context"
 
 
 @pytest.fixture
@@ -255,3 +257,92 @@ class TestCLIWorkspaceDelete:
 
         assert result.exit_code == 1
         mock_client.delete_workspace.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# CLI command tests — workspace quick-preview
+# ---------------------------------------------------------------------------
+
+
+def _make_quick_preview_ctx(mock_state, mock_client) -> WorkspaceContext:
+    return WorkspaceContext(
+        state=mock_state,
+        client=mock_client,
+        account_id="a1",
+        container_id="c1",
+        workspace_id="w1",
+    )
+
+
+class TestCLIWorkspaceQuickPreview:
+    def test_success_compile_ok(self, mock_state, mock_client):
+        """Successful compile prints a summary and exits 0."""
+        mock_state.output_format = OutputFormat.TABLE
+        mock_client.quick_preview_workspace.return_value = {
+            "containerVersion": {
+                "tag": [{"tagId": "1"}, {"tagId": "2"}],
+                "trigger": [{"triggerId": "1"}],
+                "variable": [],
+            },
+        }
+        ctx = _make_quick_preview_ctx(mock_state, mock_client)
+
+        with patch(_PATCH_RESOLVE_CONTEXT, return_value=ctx):
+            result = runner.invoke(app, ["workspace", "quick-preview"])
+
+        assert result.exit_code == 0, result.output
+        mock_client.quick_preview_workspace.assert_called_once_with(
+            account_id="a1",
+            container_id="c1",
+            workspace_id="w1",
+            profile_name=mock_state.profile,
+            service_account_path=mock_state.service_account,
+        )
+
+    def test_compiler_error_exits_nonzero(self, mock_state, mock_client):
+        """A compilerError in the response exits with code 1."""
+        mock_state.output_format = OutputFormat.TABLE
+        mock_client.quick_preview_workspace.return_value = {
+            "compilerError": True,
+            "containerVersion": {},
+        }
+        ctx = _make_quick_preview_ctx(mock_state, mock_client)
+
+        with patch(_PATCH_RESOLVE_CONTEXT, return_value=ctx):
+            result = runner.invoke(app, ["workspace", "quick-preview"])
+
+        assert result.exit_code == 1
+
+    def test_json_output_dumps_full_response(self, mock_state, mock_client):
+        """-f json dumps the raw API response instead of the summary."""
+        mock_state.output_format = OutputFormat.JSON
+        mock_client.quick_preview_workspace.return_value = {
+            "compilerError": False,
+            "syncStatus": {"mergeConflict": False, "syncError": False},
+            "containerVersion": {
+                "tag": [{"tagId": "1"}],
+                "trigger": [],
+                "variable": [],
+            },
+        }
+        ctx = _make_quick_preview_ctx(mock_state, mock_client)
+
+        with patch(_PATCH_RESOLVE_CONTEXT, return_value=ctx):
+            result = runner.invoke(app, ["workspace", "quick-preview"])
+
+        assert result.exit_code == 0, result.output
+        assert '"compilerError": false' in result.output
+        assert '"containerVersion"' in result.output
+
+    def test_json_output_with_compiler_error_exits_nonzero(self, mock_state, mock_client):
+        """-f json still exits 1 when compilerError is true."""
+        mock_state.output_format = OutputFormat.JSON
+        mock_client.quick_preview_workspace.return_value = {
+            "compilerError": True,
+        }
+        ctx = _make_quick_preview_ctx(mock_state, mock_client)
+
+        with patch(_PATCH_RESOLVE_CONTEXT, return_value=ctx):
+            result = runner.invoke(app, ["workspace", "quick-preview"])
+
+        assert result.exit_code == 1

@@ -1166,6 +1166,37 @@ class GTMClient:
             self._handle_error(e, f"publish version {version_id}")
             return {}
 
+    def quick_preview_workspace(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Compile a workspace server-side without creating a version.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Response containing compilerError, syncStatus, and the simulated
+            containerVersion (with resolved tag/trigger/variable arrays)
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        try:
+            return (
+                service.accounts().containers().workspaces().quick_preview(path=path).execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, f"quick preview workspace {workspace_id}")
+            return {}
+
     def get_workspace_status(
         self,
         account_id: str,
