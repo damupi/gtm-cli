@@ -103,7 +103,7 @@ be expressed in `--help` (e.g. cross-cutting rules like global-flag ordering).
 |-------|----------|
 | `gtm account` | `list`, `get` |
 | `gtm container` | `list`, `get` |
-| `gtm workspace` | `list`, `get`, `status`, `create`, `delete`, `preview`, `publish` |
+| `gtm workspace` | `list`, `get`, `status`, `create`, `delete`, `preview`, `quick-preview`, `publish` |
 | `gtm tag` | `list`, `get`, `search`, `create`, `update`, `delete`, `revert`, `audit-consent`, `audit-pixels`, `audit-params`, `audit-setup-deps` |
 | `gtm template` | `list`, `get`, `create`, `update`, `delete` |
 | `gtm trigger` | `list`, `get`, `create`, `update`, `delete`, `revert` |
