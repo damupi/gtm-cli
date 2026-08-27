@@ -14,6 +14,7 @@ from gtm_cli.utils.output import (
     output,
     print_dry_run,
     print_error,
+    print_info,
     print_success,
 )
 
@@ -51,6 +52,15 @@ def _api_kwargs(state: State) -> dict[str, Any]:
         "profile_name": state.profile,
         "service_account_path": state.service_account,
     }
+
+
+def _redact_auth_code(environment: dict[str, Any], state: State) -> dict[str, Any]:
+    """Redact authorizationCode in table/plain output; JSON/YAML keep the real value."""
+    if state.output_format not in (OutputFormat.JSON, OutputFormat.YAML) and environment.get(
+        "authorizationCode"
+    ):
+        return {**environment, "authorizationCode": _AUTH_CODE_REDACTED}
+    return environment
 
 
 @app.command("list")
@@ -109,10 +119,7 @@ def get_environment(
         print_error(f"Environment '{environment_id}' not found")
         raise typer.Exit(1) from None
 
-    if state.output_format not in (OutputFormat.JSON, OutputFormat.YAML) and environment.get(
-        "authorizationCode"
-    ):
-        environment = {**environment, "authorizationCode": _AUTH_CODE_REDACTED}
+    environment = _redact_auth_code(environment, state)
 
     output(environment, fmt=state.output_format)
 
@@ -162,10 +169,15 @@ def create_environment(
 
     Exactly one of --container-version-id or --workspace-id must be given.
 
+    In table/plain output, the sensitive `authorizationCode` field returned by
+    the API is redacted (same rule as `environment get`). Use `--format json`
+    or `--format yaml` to capture it — needed for Tag Assistant / automation.
+
     Examples:
         gtm environment create --name "Playwright QA" --description "QA env" \\
             --url "https://example.com" --container-version-id 3 --enable-debug
         gtm environment create --name "Dev sandbox" --workspace-id 9
+        gtm -f json environment create --name "CI env" --workspace-id 9   # to capture authorizationCode
     """
     state, client, account_id, container_id = _resolve_container_context()
 
@@ -205,7 +217,11 @@ def create_environment(
 
     environment_id = result.get("environmentId", "")
     print_success(f"Created environment '{name}' (ID: {environment_id})")
-    output(result, fmt=state.output_format)
+    if state.output_format not in (OutputFormat.JSON, OutputFormat.YAML) and result.get(
+        "authorizationCode"
+    ):
+        print_info("authorizationCode redacted — use --format json/yaml to view it.")
+    output(_redact_auth_code(result, state), fmt=state.output_format)
 
 
 @app.command("delete")

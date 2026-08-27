@@ -257,6 +257,38 @@ class TestEnvironmentCreate:
         assert "dry run" in result.output.lower()
         client.create_environment.assert_not_called()
 
+    def test_create_table_format_redacts_auth_code(self, mock_resolve):
+        """Table/plain output of the freshly created environment must not leak
+        authorizationCode — same rule as `environment get`."""
+        state, client, account_id, container_id = mock_resolve
+        state.output_format = OutputFormat.TABLE
+        client.create_environment.return_value = dict(_EXISTING_ENV)
+
+        with patch(_PATCH_TARGET, return_value=(state, client, account_id, container_id)):
+            result = runner.invoke(
+                app,
+                ["environment", "create", "--name", "Playwright QA", "--container-version-id", "3"],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "super-secret-code" not in result.output
+        assert "redacted" in result.output.lower()
+
+    def test_create_json_format_includes_auth_code(self, mock_resolve):
+        """JSON output of the freshly created environment preserves authorizationCode."""
+        state, client, account_id, container_id = mock_resolve
+        state.output_format = OutputFormat.JSON
+        client.create_environment.return_value = dict(_EXISTING_ENV)
+
+        with patch(_PATCH_TARGET, return_value=(state, client, account_id, container_id)):
+            result = runner.invoke(
+                app,
+                ["environment", "create", "--name", "Playwright QA", "--container-version-id", "3"],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "super-secret-code" in result.output
+
 
 # ---------------------------------------------------------------------------
 # delete
