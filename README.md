@@ -239,6 +239,34 @@ gtm version get 42
 gtm version diff 42 43
 ```
 
+### Environments
+
+Environments are container-scoped (account + container only, no workspace) and
+are used to generate Preview/Publish links for QA, staging, etc.:
+
+```bash
+# List environments in the container
+gtm environment list
+
+# Get full environment details (authorizationCode is redacted in table/plain
+# output; use --format json/yaml to see the real value)
+gtm environment get 5
+gtm -f json environment get 5
+
+# Create an environment pinned to a published container version
+gtm environment create --name "Playwright QA" --description "QA env for e2e tests" \
+  --url "https://example.com" --container-version-id 3 --enable-debug
+
+# Create an environment pointing at a live workspace instead
+# (--container-version-id and --workspace-id are mutually exclusive)
+gtm environment create --name "Dev sandbox" --workspace-id 9
+
+# Delete a user-created environment (prompts for confirmation unless --yes)
+# live/latest/workspace-linked environments cannot be deleted
+gtm environment delete 5
+gtm environment delete 5 --yes
+```
+
 ### Piping & Scripting
 
 Output auto-switches to plain tab-separated format when piped:
@@ -381,6 +409,10 @@ Remember to grant the service account access in Tag Manager:
 | `gtm version list` | List container versions (with publish date) |
 | `gtm version get` | Get full version details (all tags, triggers, variables) |
 | `gtm version diff` | Show what changed between two published versions |
+| `gtm environment list` | List environments in the container |
+| `gtm environment get` | Get environment details (authorizationCode redacted unless `--format json`/`yaml`) |
+| `gtm environment create` | Create an environment pinned to a container version or workspace |
+| `gtm environment delete` | Delete a user-created environment |
 
 ## Global Options
 

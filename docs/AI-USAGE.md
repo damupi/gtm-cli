@@ -160,6 +160,23 @@ gtm -a 3116374124 -c 8983761 -w 3 workspace publish --name "v42 — description 
 
 ---
 
+## Environments
+
+Environments are container-scoped (account + container only, **no** `-w`/workspace ID).
+
+`environment create` requires **exactly one** of `--container-version-id` or `--workspace-id` — passing both or neither fails fast with an actionable error, before any API call.
+
+`environment get` redacts `authorizationCode` in table/plain output. Pass `-f json` or `-f yaml` to get the real value (needed for constructing preview/share links programmatically).
+
+`environment delete` only works on user-created environments (`type: user`). It refuses to delete the auto-managed `live`, `latest`, and `workspace`-linked environments — this is enforced client-side, not just by the API.
+
+```bash
+gtm -a 3116374124 -c 8983761 environment list
+gtm -a 3116374124 -c 8983761 environment create --name "QA" --container-version-id 3
+```
+
+---
+
 ## GTM UI deep links
 
 After any write operation, give the user a review link:

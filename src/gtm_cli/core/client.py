@@ -1142,6 +1142,116 @@ class GTMClient:
             self._handle_error(e, "list folders")
             return []
 
+    # Environment methods
+    def list_environments(
+        self,
+        account_id: str,
+        container_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List all environments in a container.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            List of environment dictionaries
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}"
+        try:
+            response = service.accounts().containers().environments().list(parent=parent).execute()
+            return response.get("environment", [])
+        except HttpError as e:
+            self._handle_error(e, "list environments")
+            return []
+
+    def get_environment(
+        self,
+        account_id: str,
+        container_id: str,
+        environment_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Get a specific environment in a container.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            environment_id: The environment ID
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Environment dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/environments/{environment_id}"
+        try:
+            return service.accounts().containers().environments().get(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"get environment {environment_id}")
+            return {}
+
+    def create_environment(
+        self,
+        account_id: str,
+        container_id: str,
+        environment_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Create an environment in a container.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            environment_body: Environment body (name, type, containerVersionId/workspaceId, ...)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Created environment dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        parent = f"accounts/{account_id}/containers/{container_id}"
+        # The API rejects the request with a 400 ("Invalid account_id (base 10
+        # number expected): ''") unless accountId/containerId are also present
+        # in the body — parent alone isn't enough for this endpoint.
+        body = {**environment_body, "accountId": account_id, "containerId": container_id}
+        try:
+            return (
+                service.accounts()
+                .containers()
+                .environments()
+                .create(parent=parent, body=body)
+                .execute()
+            )
+        except HttpError as e:
+            self._handle_error(e, "create environment")
+            return {}
+
+    def delete_environment(
+        self,
+        account_id: str,
+        container_id: str,
+        environment_id: str,
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> None:
+        """Delete an environment from a container."""
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/environments/{environment_id}"
+        try:
+            service.accounts().containers().environments().delete(path=path).execute()
+        except HttpError as e:
+            self._handle_error(e, f"delete environment {environment_id}")
+
     # Version methods
     def list_versions(
         self,
