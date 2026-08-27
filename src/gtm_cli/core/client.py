@@ -1220,12 +1220,16 @@ class GTMClient:
         """
         service = self._get_service(profile_name, service_account_path)
         parent = f"accounts/{account_id}/containers/{container_id}"
+        # The API rejects the request with a 400 ("Invalid account_id (base 10
+        # number expected): ''") unless accountId/containerId are also present
+        # in the body — parent alone isn't enough for this endpoint.
+        body = {**environment_body, "accountId": account_id, "containerId": container_id}
         try:
             return (
                 service.accounts()
                 .containers()
                 .environments()
-                .create(parent=parent, body=environment_body)
+                .create(parent=parent, body=body)
                 .execute()
             )
         except HttpError as e:
