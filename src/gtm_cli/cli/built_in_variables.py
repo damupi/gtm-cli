@@ -5,7 +5,7 @@ from typing import Annotated
 import typer
 
 from gtm_cli.cli.helpers import resolve_workspace_context
-from gtm_cli.utils.output import confirm, output, print_success
+from gtm_cli.utils.output import confirm, output, print_dry_run, print_success
 
 app = typer.Typer(
     help="""Manage GTM built-in variables.
@@ -73,6 +73,10 @@ def enable_built_in_variables(
     ):
         raise typer.Exit(0)
 
+    if ctx.state.dry_run:
+        print_dry_run(f"enable built-in variable(s): {', '.join(types)}")
+        raise typer.Exit(0)
+
     result = ctx.client.enable_built_in_variables(types=types, **ctx.api_kwargs)
 
     enabled_names = ", ".join(v.get("name", v.get("type", "")) for v in result) or ", ".join(types)
@@ -111,6 +115,10 @@ def disable_built_in_variables(
         and not yes
         and not confirm(f"Disable built-in variable(s): {', '.join(types)}?")
     ):
+        raise typer.Exit(0)
+
+    if ctx.state.dry_run:
+        print_dry_run(f"disable built-in variable(s): {', '.join(types)}")
         raise typer.Exit(0)
 
     ctx.client.disable_built_in_variables(types=types, **ctx.api_kwargs)

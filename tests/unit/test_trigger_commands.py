@@ -414,3 +414,48 @@ def test_delete_trigger_not_found(mock_ctx):
 
     assert result.exit_code == 1
     assert "not found" in result.output
+
+
+# -- dry-run tests --
+
+
+def test_create_trigger_dry_run_does_not_call_client(mock_ctx):
+    """--dry-run prints a DRY RUN message and skips the actual create_trigger call."""
+    mock_ctx.state.dry_run = True
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "create", "--name", "PV", "--type", "pageview"])
+
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output.lower()
+    mock_ctx.client.create_trigger.assert_not_called()
+
+
+def test_update_trigger_dry_run_does_not_call_client(mock_ctx):
+    """--dry-run prints a DRY RUN message and skips the actual update_trigger call."""
+    mock_ctx.state.dry_run = True
+    mock_ctx.client.list_triggers.return_value = [
+        {"triggerId": "295", "name": "Old Name"},
+    ]
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "update", "295", "--name", "New Name"])
+
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output.lower()
+    mock_ctx.client.update_trigger.assert_not_called()
+
+
+def test_delete_trigger_dry_run_does_not_call_client(mock_ctx):
+    """--dry-run still validates the trigger exists but skips the actual delete."""
+    mock_ctx.state.dry_run = True
+    mock_ctx.client.list_triggers.return_value = [
+        {"triggerId": "200", "name": "Old Trigger"},
+    ]
+
+    with patch("gtm_cli.cli.triggers.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["trigger", "delete", "200"])
+
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output.lower()
+    mock_ctx.client.delete_trigger.assert_not_called()

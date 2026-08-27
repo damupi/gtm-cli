@@ -17,6 +17,7 @@ from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import (
     confirm,
     output,
+    print_dry_run,
     print_error,
     print_info,
     print_success,
@@ -1240,6 +1241,10 @@ def create_tag(
 
     tag_body["tagFiringOption"] = "oncePerEvent" if once_per_event else "unlimited"
 
+    if ctx.state.dry_run:
+        print_dry_run(f"create tag '{name}' (type: {tag_type})")
+        raise typer.Exit(0)
+
     result = ctx.client.create_tag(tag_body=tag_body, **ctx.api_kwargs)
 
     created_id = result.get("tagId", "")
@@ -1441,6 +1446,10 @@ def update_tag(
         param_map = _parse_param_map(param)
         _upsert_params(tag.setdefault("parameter", []), param_map)
 
+    if ctx.state.dry_run:
+        print_dry_run(f"update tag '{tag.get('name', tag_id)}' (ID: {tag_id})")
+        raise typer.Exit(0)
+
     result = ctx.client.update_tag(tag_id=tag_id, tag_body=tag, **ctx.api_kwargs)
     print_success(f"Updated tag '{result.get('name', tag_id)}' (ID: {tag_id})")
     output(result, fmt=ctx.state.output_format)
@@ -1509,6 +1518,10 @@ def delete_tag(
 
     tag_name = tag.get("name", tag_id)
     if not ctx.state.yes and not confirm(f"Delete tag '{tag_name}' (ID: {tag_id})?"):
+        raise typer.Exit(0)
+
+    if ctx.state.dry_run:
+        print_dry_run(f"delete tag '{tag_name}' (ID: {tag_id})")
         raise typer.Exit(0)
 
     ctx.client.delete_tag(tag_id=tag_id, **ctx.api_kwargs)

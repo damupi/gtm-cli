@@ -99,6 +99,23 @@ def test_create_template_from_file(mock_ctx, tmp_path):
     assert body["templateData"] == "const x = require('injectScript');\n"
 
 
+def test_create_template_dry_run_does_not_call_client(mock_ctx, tmp_path):
+    """--dry-run prints a DRY RUN message and skips the actual create_template call."""
+    mock_ctx.state.dry_run = True
+    tpl_file = tmp_path / "attribution-cookie.tpl"
+    tpl_file.write_text("const x = require('injectScript');\n")
+
+    with patch(_PATCH_TARGET, return_value=mock_ctx):
+        result = runner.invoke(
+            app,
+            ["template", "create", "--name", "Attr", "--file", str(tpl_file)],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output.lower()
+    mock_ctx.client.create_template.assert_not_called()
+
+
 def test_create_template_missing_file_exits_error(mock_ctx):
     """A nonexistent --file path is rejected before hitting the client."""
     with patch(_PATCH_TARGET, return_value=mock_ctx):
@@ -158,6 +175,19 @@ def test_update_template_not_found(mock_ctx):
     assert "not found" in result.output.lower()
 
 
+def test_update_template_dry_run_does_not_call_client(mock_ctx):
+    """--dry-run prints a DRY RUN message and skips the actual update_template call."""
+    mock_ctx.state.dry_run = True
+    mock_ctx.client.get_template.return_value = dict(_EXISTING_TEMPLATE)
+
+    with patch(_PATCH_TARGET, return_value=mock_ctx):
+        result = runner.invoke(app, ["template", "update", "12", "--name", "Renamed"])
+
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output.lower()
+    mock_ctx.client.update_template.assert_not_called()
+
+
 def test_update_template_no_changes_exits_error(mock_ctx):
     """No options specified exits with code 1."""
     with patch(_PATCH_TARGET, return_value=mock_ctx):
@@ -191,3 +221,16 @@ def test_delete_template_not_found(mock_ctx):
 
     assert result.exit_code == 1
     assert "not found" in result.output.lower()
+
+
+def test_delete_template_dry_run_does_not_call_client(mock_ctx):
+    """--dry-run still validates the template exists but skips the actual delete."""
+    mock_ctx.state.dry_run = True
+    mock_ctx.client.get_template.return_value = dict(_EXISTING_TEMPLATE)
+
+    with patch(_PATCH_TARGET, return_value=mock_ctx):
+        result = runner.invoke(app, ["template", "delete", "12"])
+
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output.lower()
+    mock_ctx.client.delete_template.assert_not_called()

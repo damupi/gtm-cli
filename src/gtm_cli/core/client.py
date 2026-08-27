@@ -1297,9 +1297,7 @@ class GTMClient:
         service = self._get_service(profile_name, service_account_path)
         path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
         try:
-            return (
-                service.accounts().containers().workspaces().quick_preview(path=path).execute()
-            )
+            return service.accounts().containers().workspaces().quick_preview(path=path).execute()
         except HttpError as e:
             self._handle_error(e, f"quick preview workspace {workspace_id}")
             return {}

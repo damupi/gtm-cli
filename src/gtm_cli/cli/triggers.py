@@ -10,7 +10,7 @@ from gtm_cli.cli.helpers import (
     load_json_merge_patch,
     resolve_workspace_context,
 )
-from gtm_cli.utils.output import confirm, output, print_error, print_success
+from gtm_cli.utils.output import confirm, output, print_dry_run, print_error, print_success
 
 # Timer triggers use top-level fields, not the parameter array
 _TIMER_TOP_LEVEL_KEYS = frozenset({"interval", "limit", "eventName"})
@@ -142,6 +142,10 @@ def create_trigger(
     if trigger_type == "timer" and "eventName" not in trigger_body:
         trigger_body["eventName"] = {"type": "template", "value": "gtm.timer"}
 
+    if ctx.state.dry_run:
+        print_dry_run(f"create trigger '{name}' (type: {trigger_type})")
+        raise typer.Exit(0)
+
     result = ctx.client.create_trigger(trigger_body=trigger_body, **ctx.api_kwargs)
 
     trigger_id = result.get("triggerId", "")
@@ -217,6 +221,10 @@ def update_trigger(
     if name:
         trigger["name"] = name
 
+    if ctx.state.dry_run:
+        print_dry_run(f"update trigger '{trigger.get('name', trigger_id)}' (ID: {trigger_id})")
+        raise typer.Exit(0)
+
     result = ctx.client.update_trigger(
         trigger_id=trigger_id, trigger_body=trigger, **ctx.api_kwargs
     )
@@ -239,6 +247,10 @@ def delete_trigger(
 
     trigger_name = trigger.get("name", trigger_id)
     if not ctx.state.yes and not confirm(f"Delete trigger '{trigger_name}' (ID: {trigger_id})?"):
+        raise typer.Exit(0)
+
+    if ctx.state.dry_run:
+        print_dry_run(f"delete trigger '{trigger_name}' (ID: {trigger_id})")
         raise typer.Exit(0)
 
     ctx.client.delete_trigger(trigger_id=trigger_id, **ctx.api_kwargs)

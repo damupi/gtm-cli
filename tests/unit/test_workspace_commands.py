@@ -150,6 +150,22 @@ class TestCLIWorkspaceCreate:
         )
         assert "55" in result.output
 
+    def test_create_dry_run_does_not_call_client(self, mock_state, mock_client):
+        """--dry-run prints a DRY RUN message and skips the actual create_workspace call."""
+        mock_state.dry_run = True
+
+        with (
+            patch(_PATCH_STATE, return_value=mock_state),
+            patch(_PATCH_CLIENT, return_value=mock_client),
+            patch(_PATCH_RESOLVE_ACCOUNT, return_value="a1"),
+            patch(_PATCH_RESOLVE_CONTAINER, return_value="c1"),
+        ):
+            result = runner.invoke(app, ["workspace", "create", "--name", "cli-test-DELETEME"])
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_client.create_workspace.assert_not_called()
+
     def test_create_with_description(self, mock_state, mock_client):
         """--description is forwarded to the client."""
         mock_client.create_workspace.return_value = {
@@ -233,6 +249,30 @@ class TestCLIWorkspaceDelete:
         assert result.exit_code == 0, result.output
         mock_client.delete_workspace.assert_not_called()
 
+    def test_delete_dry_run_does_not_call_client(self, mock_state, mock_client):
+        """--dry-run still validates and confirms but skips the actual delete_workspace call."""
+        mock_state.dry_run = True
+        mock_state.yes = True
+        mock_client.get_workspace.return_value = {
+            "workspaceId": "99",
+            "name": "Doomed Workspace",
+        }
+
+        with (
+            patch(_PATCH_STATE, return_value=mock_state),
+            patch(_PATCH_CLIENT, return_value=mock_client),
+            patch(_PATCH_RESOLVE_ACCOUNT, return_value="a1"),
+            patch(_PATCH_RESOLVE_CONTAINER, return_value="c1"),
+        ):
+            result = runner.invoke(
+                app,
+                ["workspace", "delete", "--workspace-id", "99", "--yes"],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_client.delete_workspace.assert_not_called()
+
     def test_delete_workspace_not_found(self, mock_state, mock_client):
         """delete exits with code 1 when API raises ResourceNotFoundError."""
         mock_state.yes = True
@@ -272,6 +312,31 @@ def _make_quick_preview_ctx(mock_state, mock_client) -> WorkspaceContext:
         container_id="c1",
         workspace_id="w1",
     )
+
+
+# ---------------------------------------------------------------------------
+# CLI command tests — workspace publish (--dry-run)
+# ---------------------------------------------------------------------------
+
+
+class TestCLIWorkspacePublishDryRun:
+    def test_publish_dry_run_does_not_create_or_publish_version(self, mock_state, mock_client):
+        """--dry-run prints a DRY RUN message and skips create_version/publish_version."""
+        mock_state.dry_run = True
+        mock_state.yes = True
+        mock_client.get_workspace_status.return_value = {
+            "workspaceChange": [{"changeStatus": "added", "tag": {"name": "New Tag"}}],
+            "mergeConflict": [],
+        }
+        ctx = _make_quick_preview_ctx(mock_state, mock_client)
+
+        with patch(_PATCH_RESOLVE_CONTEXT, return_value=ctx):
+            result = runner.invoke(app, ["workspace", "publish"])
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_client.create_version.assert_not_called()
+        mock_client.publish_version.assert_not_called()
 
 
 class TestCLIWorkspaceQuickPreview:

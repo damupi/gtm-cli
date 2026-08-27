@@ -149,6 +149,16 @@ def print_error(message: str) -> None:
     error_console.print(f"[red]✗[/red] {message}")
 
 
+def print_dry_run(action: str) -> None:
+    """Print what a mutating call would do, for --dry-run mode.
+
+    Called after validation/confirmation but before the client call that would
+    actually mutate GTM state, so `--dry-run` still exercises the same checks
+    a real run would while guaranteeing no API write occurs.
+    """
+    console.print(f"[yellow]DRY RUN[/yellow] Would {action}. No changes made.")
+
+
 def print_warning(message: str) -> None:
     """Print a warning message."""
     console.print(f"[yellow]![/yellow] {message}")
