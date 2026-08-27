@@ -79,6 +79,15 @@ class TestEnvironmentList:
 
 
 class TestEnvironmentGet:
+    def test_get_help_warns_auth_code_is_credential(self):
+        """--help alone must explain authorizationCode is credential-bearing,
+        per this repo's self-documenting-CLI design principle — no external
+        doc should be required to know not to leak it."""
+        result = runner.invoke(app, ["environment", "get", "--help"])
+
+        assert result.exit_code == 0, result.output
+        assert "credential" in result.output.lower()
+
     def test_get_found(self, mock_resolve):
         """Returns full environment details when found."""
         state, client, account_id, container_id = mock_resolve
@@ -146,6 +155,13 @@ class TestEnvironmentGet:
 
 
 class TestEnvironmentCreate:
+    def test_create_help_warns_auth_code_is_credential(self):
+        """--help alone must explain authorizationCode is credential-bearing."""
+        result = runner.invoke(app, ["environment", "create", "--help"])
+
+        assert result.exit_code == 0, result.output
+        assert "credential" in result.output.lower()
+
     def test_create_with_container_version_id(self, mock_resolve):
         """--container-version-id sets containerVersionId and type=user."""
         state, client, account_id, container_id = mock_resolve

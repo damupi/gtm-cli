@@ -102,6 +102,10 @@ def get_environment(
     In table/plain output, the sensitive `authorizationCode` field is redacted.
     Use `--format json` or `--format yaml` to view the real value.
 
+    `authorizationCode` is credential-bearing data: it grants preview/publish
+    access to this environment. Never paste the real value into a commit,
+    ticket, log, or report — treat it like any other secret.
+
     Examples:
         gtm environment get 5
         gtm -f json environment get 5
@@ -172,6 +176,10 @@ def create_environment(
     In table/plain output, the sensitive `authorizationCode` field returned by
     the API is redacted (same rule as `environment get`). Use `--format json`
     or `--format yaml` to capture it — needed for Tag Assistant / automation.
+
+    `authorizationCode` is credential-bearing data: it grants preview/publish
+    access to this environment. Never paste the real value into a commit,
+    ticket, log, or report — treat it like any other secret.
 
     Examples:
         gtm environment create --name "Playwright QA" --description "QA env" \\
