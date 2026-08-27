@@ -200,6 +200,7 @@ def register_commands() -> None:
     from gtm_cli.cli import auth as auth_cli
     from gtm_cli.cli import built_in_variables as built_in_variables_cli
     from gtm_cli.cli import containers as containers_cli
+    from gtm_cli.cli import environments as environments_cli
     from gtm_cli.cli import init as init_cli
     from gtm_cli.cli import profile as profile_cli
     from gtm_cli.cli import setup as setup_cli
@@ -218,6 +219,7 @@ def register_commands() -> None:
     app.add_typer(profile_cli.app, name="profile")
     app.add_typer(accounts_cli.app, name="account")
     app.add_typer(containers_cli.app, name="container")
+    app.add_typer(environments_cli.app, name="environment")
     app.add_typer(workspaces_cli.app, name="workspace")
     app.add_typer(tags_cli.app, name="tag")
     app.add_typer(templates_cli.app, name="template")

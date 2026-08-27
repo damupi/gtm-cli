@@ -113,6 +113,7 @@ Rationale and the agent-friction cases that motivated this principle:
 | `gtm trigger` | `list`, `get`, `create`, `update` (supports `--json-file`, same merge semantics as `tag update`; can also change `type`), `delete`, `revert` |
 | `gtm variable` | `list`, `get`, `types`, `create`, `update`, `delete`, `revert` |
 | `gtm version` | `list`, `get`, `publish`, `revert` |
+| `gtm environment` | `list`, `get`, `create`, `delete` |
 | `gtm built-in-variable` | `list`, `enable`, `disable` |
 
 ## Multi-line JS/HTML parameters
