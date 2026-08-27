@@ -295,6 +295,20 @@ class TestCreateTag:
         assert "Invalid consent type" in result.output
         mock_ctx.client.create_tag.assert_not_called()
 
+    def test_create_tag_dry_run_does_not_call_client(self, mock_ctx):
+        """--dry-run prints a DRY RUN message and skips the actual create_tag call."""
+        mock_ctx.state.dry_run = True
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["tag", "create", "--name", "My Tag", "--html", "<script>x</script>"],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_ctx.client.create_tag.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # update_tag
@@ -718,6 +732,20 @@ class TestUpdateTag:
 # ---------------------------------------------------------------------------
 
 
+class TestUpdateTagDryRun:
+    def test_update_tag_dry_run_does_not_call_client(self, mock_ctx):
+        """--dry-run prints a DRY RUN message and skips the actual update_tag call."""
+        mock_ctx.state.dry_run = True
+        mock_ctx.client.get_tag.return_value = {**_EXISTING_TAG}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "update", "421", "--name", "New Name"])
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_ctx.client.update_tag.assert_not_called()
+
+
 class TestDeleteTag:
     def test_delete_tag_success(self, mock_ctx):
         """Tag found and --yes skips prompt; client.delete_tag is called."""
@@ -740,6 +768,18 @@ class TestDeleteTag:
 
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
+
+    def test_delete_tag_dry_run_does_not_call_client(self, mock_ctx):
+        """--dry-run still validates and confirms, but skips the actual delete_tag call."""
+        mock_ctx.state.dry_run = True
+        mock_ctx.client.get_tag.return_value = {"tagId": "100", "name": "Doomed Tag"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["tag", "delete", "100"])
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_ctx.client.delete_tag.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

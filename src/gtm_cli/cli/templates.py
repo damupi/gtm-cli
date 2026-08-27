@@ -6,7 +6,7 @@ from typing import Annotated, Any
 import typer
 
 from gtm_cli.cli.helpers import resolve_workspace_context
-from gtm_cli.utils.output import confirm, output, print_error, print_success
+from gtm_cli.utils.output import confirm, output, print_dry_run, print_error, print_success
 
 app = typer.Typer(
     help="""Manage GTM Custom Templates (sandboxed JS .tpl).
@@ -83,6 +83,10 @@ def create_template(
         "templateData": file.read_text(),
     }
 
+    if ctx.state.dry_run:
+        print_dry_run(f"create template '{name}'")
+        raise typer.Exit(0)
+
     result = ctx.client.create_template(template_body=template_body, **ctx.api_kwargs)
 
     template_id = result.get("templateId", "")
@@ -133,6 +137,10 @@ def update_template(
     if file is not None:
         template["templateData"] = file.read_text()
 
+    if ctx.state.dry_run:
+        print_dry_run(f"update template '{template.get('name', template_id)}' (ID: {template_id})")
+        raise typer.Exit(0)
+
     result = ctx.client.update_template(
         template_id=template_id, template_body=template, **ctx.api_kwargs
     )
@@ -160,6 +168,10 @@ def delete_template(
         and not yes
         and not confirm(f"Delete template '{template_name}' (ID: {template_id})?")
     ):
+        raise typer.Exit(0)
+
+    if ctx.state.dry_run:
+        print_dry_run(f"delete template '{template_name}' (ID: {template_id})")
         raise typer.Exit(0)
 
     ctx.client.delete_template(template_id=template_id, **ctx.api_kwargs)

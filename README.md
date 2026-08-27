@@ -392,7 +392,12 @@ Remember to grant the service account access in Tag Manager:
 --service-account   Use service account credentials file
 --format, -f        Output format: json, yaml, table, plain (default: table)
 --verbose, -v       Enable debug logging
---dry-run           Show API calls without executing
+--dry-run           Preview a mutating command without executing it. Supported by every
+                    create/update/delete/publish/enable/disable command (tag, trigger,
+                    variable, template, workspace create/delete/publish, built-in-variable
+                    enable/disable). Still runs validation and any confirmation prompt, then
+                    prints "DRY RUN ..." instead of calling the API — no changes are made.
+                    Read-only commands (list/get/search/status/etc.) ignore this flag.
 --yes, -y           Skip confirmation prompts
 --authuser, -u      Append authuser=N to GTM URLs (env: GTM_AUTHUSER)
 ```

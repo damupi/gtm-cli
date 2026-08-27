@@ -10,6 +10,7 @@ from gtm_cli.utils.output import (
     format_plain,
     format_timestamp,
     output,
+    print_dry_run,
     relative_time,
 )
 
@@ -191,3 +192,11 @@ class TestRelativeTime:
     def test_relative_time_invalid(self):
         """Non-numeric string -> empty string."""
         assert relative_time("abc") == ""
+
+
+def test_print_dry_run_mentions_dry_run_and_action(capsys):
+    """print_dry_run prints a message containing 'DRY RUN' and the given action."""
+    print_dry_run("delete tag 'My Tag' (ID: 42)")
+    captured = capsys.readouterr()
+    assert "DRY RUN" in captured.out
+    assert "delete tag 'My Tag' (ID: 42)" in captured.out

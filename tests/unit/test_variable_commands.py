@@ -366,3 +366,91 @@ class TestUpdateVariable:
         assert body["name"] == "Renamed"
         # Parameters untouched
         assert body["parameter"] == existing["parameter"]
+
+    def test_update_variable_dry_run_does_not_call_client(self, mock_ctx):
+        """--dry-run prints a DRY RUN message and skips the actual update_variable call."""
+        mock_ctx.state.dry_run = True
+        existing = {"variableId": "99", "name": "My Var", "type": "c", "parameter": []}
+        mock_ctx.client.get_variable.return_value = existing
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["variable", "update", "99", "--name", "New Name"])
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_ctx.client.update_variable.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# create_variable dry-run
+# ---------------------------------------------------------------------------
+
+
+class TestCreateVariableDryRun:
+    def test_create_variable_dry_run_does_not_call_client(self, mock_ctx):
+        """--dry-run prints a DRY RUN message and skips the actual create_variable call."""
+        mock_ctx.state.dry_run = True
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["variable", "create", "--name", "My Var", "--type", "c"])
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_ctx.client.create_variable.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# delete_variable
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteVariable:
+    def test_delete_variable_success(self, mock_ctx):
+        """Variable found and deleted successfully."""
+        mock_ctx.client.get_variable.return_value = {"variableId": "99", "name": "Doomed"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["variable", "delete", "99"])
+
+        assert result.exit_code == 0, result.output
+        mock_ctx.client.delete_variable.assert_called_once()
+
+    def test_delete_variable_dry_run_does_not_call_client(self, mock_ctx):
+        """--dry-run still validates the variable exists but skips the actual delete."""
+        mock_ctx.state.dry_run = True
+        mock_ctx.client.get_variable.return_value = {"variableId": "99", "name": "Doomed"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["variable", "delete", "99"])
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_ctx.client.delete_variable.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# revert_variable
+# ---------------------------------------------------------------------------
+
+
+class TestRevertVariable:
+    def test_revert_variable_success(self, mock_ctx):
+        """Revert calls client.revert_variable and prints success."""
+        mock_ctx.client.revert_variable.return_value = {"variable": {"name": "Reverted Var"}}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["variable", "revert", "99"])
+
+        assert result.exit_code == 0, result.output
+        mock_ctx.client.revert_variable.assert_called_once()
+
+    def test_revert_variable_dry_run_does_not_call_client(self, mock_ctx):
+        """--dry-run prints a DRY RUN message and skips the actual revert_variable call."""
+        mock_ctx.state.dry_run = True
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["variable", "revert", "99"])
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_ctx.client.revert_variable.assert_not_called()

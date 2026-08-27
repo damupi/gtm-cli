@@ -10,6 +10,7 @@ from gtm_cli.utils.output import (
     OutputFormat,
     confirm,
     output,
+    print_dry_run,
     print_error,
     print_info,
     print_success,
@@ -241,6 +242,10 @@ def create_variable(
     if notes:
         variable_body["notes"] = notes
 
+    if ctx.state.dry_run:
+        print_dry_run(f"create variable '{name}' (type: {variable_type})")
+        raise typer.Exit(0)
+
     result = ctx.client.create_variable(variable_body=variable_body, **ctx.api_kwargs)
 
     variable_id = result.get("variableId", "")
@@ -375,6 +380,12 @@ def update_variable(
     if notes is not None:
         updated_body["notes"] = notes
 
+    if ctx.state.dry_run:
+        print_dry_run(
+            f"update variable '{updated_body.get('name', variable_name)}' (ID: {variable_id})"
+        )
+        raise typer.Exit(0)
+
     result = ctx.client.update_variable(
         variable_id=variable_id, variable_body=updated_body, **ctx.api_kwargs
     )
@@ -417,6 +428,10 @@ def delete_variable(
     ):
         raise typer.Exit(0)
 
+    if ctx.state.dry_run:
+        print_dry_run(f"delete variable '{variable_name}' (ID: {variable_id})")
+        raise typer.Exit(0)
+
     ctx.client.delete_variable(variable_id=variable_id, **ctx.api_kwargs)
     print_success(f"Deleted variable '{variable_name}' (ID: {variable_id})")
 
@@ -438,6 +453,10 @@ def revert_variable(
         and not yes
         and not confirm(f"Revert workspace changes for variable '{variable_id}'?")
     ):
+        raise typer.Exit(0)
+
+    if ctx.state.dry_run:
+        print_dry_run(f"revert workspace changes for variable '{variable_id}'")
         raise typer.Exit(0)
 
     result = ctx.client.revert_variable(

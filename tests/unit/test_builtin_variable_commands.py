@@ -176,3 +176,30 @@ def test_disable_built_in_variables_requires_confirmation(mock_ctx):
 
     assert result.exit_code == 0
     mock_ctx.client.disable_built_in_variables.assert_not_called()
+
+
+# -- dry-run --
+
+
+def test_enable_built_in_variables_dry_run_does_not_call_client(mock_ctx):
+    """--dry-run prints a DRY RUN message and skips the actual enable call."""
+    mock_ctx.state.dry_run = True
+
+    with patch("gtm_cli.cli.built_in_variables.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["built-in-variable", "enable", "analyticsSessionId"])
+
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output.lower()
+    mock_ctx.client.enable_built_in_variables.assert_not_called()
+
+
+def test_disable_built_in_variables_dry_run_does_not_call_client(mock_ctx):
+    """--dry-run prints a DRY RUN message and skips the actual disable call."""
+    mock_ctx.state.dry_run = True
+
+    with patch("gtm_cli.cli.built_in_variables.resolve_workspace_context", return_value=mock_ctx):
+        result = runner.invoke(app, ["built-in-variable", "disable", "clickUrl"])
+
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output.lower()
+    mock_ctx.client.disable_built_in_variables.assert_not_called()

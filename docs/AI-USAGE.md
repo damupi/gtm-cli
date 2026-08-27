@@ -183,3 +183,21 @@ gtm -a 3116374124 -c 8983761 workspace list
 ```
 
 If at 3, stop and ask the user to delete one before proceeding.
+
+---
+
+## `--dry-run` is enforced repo-wide
+
+`--dry-run` is a safe way to preview any mutating command before running it for real.
+It is honored by every create/update/delete/publish/enable/disable command (`tag`,
+`trigger`, `variable`, `template`, `workspace create`/`delete`/`publish`,
+`built-in-variable enable`/`disable`). Validation and any confirmation prompt still run
+as normal — only the final API call that would mutate GTM state is skipped, and a
+`DRY RUN ...` message is printed describing what would have happened. Read-only commands
+(`list`, `get`, `search`, `status`, etc.) ignore the flag since they never mutate state.
+
+Use it to preview a risky change before committing to it, e.g.:
+
+```bash
+gtm --dry-run -y tag delete 711
+```

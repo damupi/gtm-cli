@@ -16,6 +16,7 @@ from gtm_cli.core.client import get_client
 from gtm_cli.utils.output import (
     OutputFormat,
     output,
+    print_dry_run,
     print_error,
     print_info,
     print_success,
@@ -295,6 +296,13 @@ def workspace_publish(
         if not version_notes:
             version_notes = suggested_notes
 
+    if ctx.state.dry_run:
+        print_dry_run(
+            f"create a version ('{version_name or '(unnamed)'}') from {len(changes)} pending "
+            "change(s) and publish it"
+        )
+        raise typer.Exit(0)
+
     print_info(f"Creating version from {len(changes)} change(s)...")
 
     # Create version
@@ -387,6 +395,10 @@ def create_workspace(
         )
         raise typer.Exit(1)
 
+    if state.dry_run:
+        print_dry_run(f"create workspace '{name}' in container {resolved_container_id}")
+        raise typer.Exit(0)
+
     workspace = client.create_workspace(
         account_id=resolved_account_id,
         container_id=resolved_container_id,
@@ -467,6 +479,10 @@ def delete_workspace(
         )
     if not confirmed:
         print_info("Cancelled.")
+        raise typer.Exit(0)
+
+    if state.dry_run:
+        print_dry_run(f"delete workspace '{workspace_name}' (ID: {workspace_id})")
         raise typer.Exit(0)
 
     try:
