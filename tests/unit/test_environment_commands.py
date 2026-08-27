@@ -235,6 +235,28 @@ class TestEnvironmentCreate:
         assert result.exit_code == 1
         client.create_environment.assert_not_called()
 
+    def test_create_dry_run_does_not_call_client(self, mock_resolve):
+        """--dry-run reports the action but never calls create_environment."""
+        state, client, account_id, container_id = mock_resolve
+        state.dry_run = True
+
+        with patch(_PATCH_TARGET, return_value=(state, client, account_id, container_id)):
+            result = runner.invoke(
+                app,
+                [
+                    "environment",
+                    "create",
+                    "--name",
+                    "Playwright QA",
+                    "--container-version-id",
+                    "3",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        client.create_environment.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # delete
@@ -315,4 +337,17 @@ class TestEnvironmentDelete:
             result = runner.invoke(app, ["environment", "delete", "5"])
 
         assert result.exit_code == 0
+        client.delete_environment.assert_not_called()
+
+    def test_delete_dry_run_does_not_call_client(self, mock_resolve):
+        """--dry-run reports the action but never calls delete_environment."""
+        state, client, account_id, container_id = mock_resolve
+        state.dry_run = True
+        client.get_environment.return_value = dict(_EXISTING_ENV)
+
+        with patch(_PATCH_TARGET, return_value=(state, client, account_id, container_id)):
+            result = runner.invoke(app, ["environment", "delete", "5"])
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
         client.delete_environment.assert_not_called()

@@ -8,7 +8,14 @@ from gtm_cli.cli.helpers import resolve_account_id, resolve_container_id
 from gtm_cli.cli.main import State, get_state
 from gtm_cli.core.client import GTMClient, get_client
 from gtm_cli.utils.errors import ResourceNotFoundError
-from gtm_cli.utils.output import OutputFormat, confirm, output, print_error, print_success
+from gtm_cli.utils.output import (
+    OutputFormat,
+    confirm,
+    output,
+    print_dry_run,
+    print_error,
+    print_success,
+)
 
 app = typer.Typer(
     help="""Manage GTM environments (accounts.containers.environments).
@@ -185,6 +192,10 @@ def create_environment(
     if workspace_id is not None:
         environment_body["workspaceId"] = workspace_id
 
+    if state.dry_run:
+        print_dry_run(f"create environment '{name}' in container {container_id}")
+        raise typer.Exit(0)
+
     result = client.create_environment(
         account_id=account_id,
         container_id=container_id,
@@ -240,6 +251,10 @@ def delete_environment(
         and not yes
         and not confirm(f"Delete environment '{env_name}' (ID: {environment_id})?")
     ):
+        raise typer.Exit(0)
+
+    if state.dry_run:
+        print_dry_run(f"delete environment '{env_name}' (ID: {environment_id})")
         raise typer.Exit(0)
 
     client.delete_environment(
