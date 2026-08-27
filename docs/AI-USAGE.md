@@ -166,7 +166,9 @@ Environments are container-scoped (account + container only, **no** `-w`/workspa
 
 `environment create` requires **exactly one** of `--container-version-id` or `--workspace-id` — passing both or neither fails fast with an actionable error, before any API call.
 
-`environment get` redacts `authorizationCode` in table/plain output. Pass `-f json` or `-f yaml` to get the real value (needed for constructing preview/share links programmatically).
+`environment get` and `environment create` both redact `authorizationCode` in table/plain output. Pass `-f json` or `-f yaml` to get the real value (needed for constructing preview/share links programmatically).
+
+**`authorizationCode` is credential-bearing data — treat it like a secret.** Never paste a real (non-redacted) value into a commit, PR/issue comment, log, or report. When demonstrating or verifying CLI behavior for documentation purposes, use the redacted table/plain output (the default) rather than `-f json`/`-f yaml`; if you must inspect the real value while debugging, do it in a throwaway shell session, and rotate/delete the environment afterward rather than leaving the value out there.
 
 `environment delete` only works on user-created environments (`type: user`). It refuses to delete the auto-managed `live`, `latest`, and `workspace`-linked environments — this is enforced client-side, not just by the API.
 
