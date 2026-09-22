@@ -1,5 +1,6 @@
 """Tests for variable CLI commands (create, update, delete, revert)."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -164,6 +165,105 @@ class TestCreateVariable:
 
         assert result.exit_code == 1
         assert "invalid" in result.output.lower()
+
+    def test_create_variable_json_file_merges_before_flags(self, mock_ctx, tmp_path):
+        """--json-file merges onto the freshly built body (name/type), --notes applied on top."""
+        mock_ctx.client.create_variable.return_value = {"variableId": "13", "name": "Lookup"}
+
+        patch_file = tmp_path / "patch.json"
+        patch_file.write_text(
+            json.dumps(
+                {
+                    "parameter": [
+                        {
+                            "type": "list",
+                            "key": "map",
+                            "list": [
+                                {
+                                    "type": "map",
+                                    "map": [
+                                        {
+                                            "type": "template",
+                                            "key": "key",
+                                            "value": "somehost\\.com",
+                                        },
+                                        {
+                                            "type": "template",
+                                            "key": "value",
+                                            "value": "G-XXXXXXX",
+                                        },
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                }
+            )
+        )
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "variable",
+                    "create",
+                    "--name",
+                    "Lookup",
+                    "--type",
+                    "smm",
+                    "--json-file",
+                    str(patch_file),
+                    "--notes",
+                    "Added by WEBDATA-123",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.create_variable.call_args.kwargs["variable_body"]
+        assert body["name"] == "Lookup"
+        assert body["type"] == "smm"
+        assert body["notes"] == "Added by WEBDATA-123"
+        # JSON-seeded nested list/map parameter is preserved since --notes doesn't
+        # touch the parameter array.
+        assert body["parameter"] == [
+            {
+                "type": "list",
+                "key": "map",
+                "list": [
+                    {
+                        "type": "map",
+                        "map": [
+                            {"type": "template", "key": "key", "value": "somehost\\.com"},
+                            {"type": "template", "key": "value", "value": "G-XXXXXXX"},
+                        ],
+                    }
+                ],
+            }
+        ]
+
+    def test_create_variable_json_file_invalid_json_exits_error(self, mock_ctx, tmp_path):
+        """Malformed JSON in --json-file exits non-zero with an actionable message."""
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text("{not valid json")
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "variable",
+                    "create",
+                    "--name",
+                    "Bad",
+                    "--type",
+                    "smm",
+                    "--json-file",
+                    str(bad_file),
+                ],
+            )
+
+        assert result.exit_code != 0
+        assert "Invalid JSON" in result.output
+        mock_ctx.client.create_variable.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +479,171 @@ class TestUpdateVariable:
         assert result.exit_code == 0, result.output
         assert "dry run" in result.output.lower()
         mock_ctx.client.update_variable.assert_not_called()
+
+    def test_update_variable_json_file_replaces_nested_parameter_preserves_omitted(
+        self, mock_ctx, tmp_path
+    ):
+        """--json-file replaces the parameter array wholesale and preserves omitted fields."""
+        existing = {
+            **self._existing_variable(),
+            "notes": "existing notes",
+        }
+        mock_ctx.client.get_variable.return_value = dict(existing)
+        mock_ctx.client.update_variable.return_value = existing
+
+        patch_file = tmp_path / "patch.json"
+        patch_file.write_text(
+            json.dumps(
+                {
+                    "parameter": [
+                        {
+                            "type": "list",
+                            "key": "map",
+                            "list": [
+                                {
+                                    "type": "map",
+                                    "map": [
+                                        {
+                                            "type": "template",
+                                            "key": "key",
+                                            "value": "somehost\\.com",
+                                        },
+                                        {
+                                            "type": "template",
+                                            "key": "value",
+                                            "value": "G-XXXXXXX",
+                                        },
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                }
+            )
+        )
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["variable", "update", "99", "--json-file", str(patch_file), "--yes"],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_variable.call_args.kwargs["variable_body"]
+        # New parameter array fully replaces the old one
+        assert body["parameter"] == [
+            {
+                "type": "list",
+                "key": "map",
+                "list": [
+                    {
+                        "type": "map",
+                        "map": [
+                            {"type": "template", "key": "key", "value": "somehost\\.com"},
+                            {"type": "template", "key": "value", "value": "G-XXXXXXX"},
+                        ],
+                    }
+                ],
+            }
+        ]
+        # Omitted fields preserved
+        assert body["notes"] == "existing notes"
+
+    def test_update_variable_json_file_then_flags_applied_on_top(self, mock_ctx, tmp_path):
+        """--json-file merge is applied first, then --name flag on top."""
+        existing = self._existing_variable()
+        mock_ctx.client.get_variable.return_value = dict(existing)
+        mock_ctx.client.update_variable.return_value = existing
+
+        patch_file = tmp_path / "patch.json"
+        patch_file.write_text(json.dumps({"name": "From JSON", "notes": "from json"}))
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "variable",
+                    "update",
+                    "99",
+                    "--json-file",
+                    str(patch_file),
+                    "--name",
+                    "From Flag",
+                    "--yes",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_variable.call_args.kwargs["variable_body"]
+        assert body["name"] == "From Flag"
+        assert body["notes"] == "from json"
+
+    def test_update_variable_json_file_invalid_json_exits_error(self, mock_ctx, tmp_path):
+        """Malformed JSON in --json-file exits non-zero with an actionable message."""
+        mock_ctx.client.get_variable.return_value = self._existing_variable()
+
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text("{not valid json")
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app, ["variable", "update", "99", "--json-file", str(bad_file), "--yes"]
+            )
+
+        assert result.exit_code != 0
+        assert "Invalid JSON" in result.output
+        assert bad_file.name in result.output
+        mock_ctx.client.update_variable.assert_not_called()
+
+    def test_update_variable_json_file_non_object_top_level_exits_error(self, mock_ctx, tmp_path):
+        """A JSON array (not object) at the top level exits non-zero."""
+        mock_ctx.client.get_variable.return_value = self._existing_variable()
+
+        bad_file = tmp_path / "list.json"
+        bad_file.write_text(json.dumps([1, 2, 3]))
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app, ["variable", "update", "99", "--json-file", str(bad_file), "--yes"]
+            )
+
+        assert result.exit_code != 0
+        assert "JSON object" in result.output
+        mock_ctx.client.update_variable.assert_not_called()
+
+    def test_update_variable_json_file_ignores_identity_fields_with_warning(
+        self, mock_ctx, tmp_path
+    ):
+        """Identity fields in the patch are stripped (not applied) with a warning, not an error."""
+        existing = self._existing_variable()
+        mock_ctx.client.get_variable.return_value = dict(existing)
+        mock_ctx.client.update_variable.return_value = existing
+
+        patch_file = tmp_path / "patch.json"
+        patch_file.write_text(
+            json.dumps(
+                {
+                    "variableId": "999",
+                    "accountId": "a999",
+                    "containerId": "c999",
+                    "workspaceId": "ws999",
+                    "fingerprint": "12345",
+                    "notes": "safe field",
+                }
+            )
+        )
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app, ["variable", "update", "99", "--json-file", str(patch_file), "--yes"]
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "Ignoring identity field" in result.output
+        body = mock_ctx.client.update_variable.call_args.kwargs["variable_body"]
+        assert body["variableId"] == "99"  # untouched, not overwritten with "999"
+        assert "accountId" not in body
+        assert body["notes"] == "safe field"
 
 
 # ---------------------------------------------------------------------------

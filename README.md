@@ -174,6 +174,25 @@ gtm trigger update 295 --json-file patch.json
 gtm trigger delete 312
 ```
 
+### Variable Management
+
+```bash
+# Create a simple variable
+gtm variable create --name "Click ID" --type v --param name:gtm.elementId
+
+# Build a Lookup Table (smm) / RegEx Table (remm) row via a JSON merge patch —
+# --param/--param-file can't express the nested list/map structure these need
+# patch.json: {"parameter": [{"type": "list", "key": "map", "list": [{"type": "map",
+#   "map": [{"type": "template", "key": "key", "value": "somehost\\.com"},
+#           {"type": "template", "key": "value", "value": "G-XXXXXXX"}]}]}]}
+gtm variable create --name "Host to GA4 ID" --type smm --json-file patch.json
+
+# Update a variable's parameter array from a JSON merge patch (top-level fields
+# only; arrays REPLACE wholesale), then apply --notes on top
+gtm variable update 123 --json-file patch.json
+gtm variable update 123 --json-file patch.json --notes "Updated by WEBDATA-123"
+```
+
 ### Built-In Variables
 
 ```bash
@@ -403,6 +422,8 @@ Remember to grant the service account access in Tag Manager:
 | `gtm trigger delete` | Delete a trigger |
 | `gtm variable list` | List variables |
 | `gtm variable get` | Get variable details |
+| `gtm variable create` | Create a new variable (supports `--json-file` for a top-level merge patch onto the freshly built body) |
+| `gtm variable update` | Update an existing variable (supports `--json-file` for a top-level merge patch) |
 | `gtm built-in-variable list` | List enabled built-in variables |
 | `gtm built-in-variable enable` | Enable one or more built-in variables |
 | `gtm built-in-variable disable` | Disable one or more built-in variables |
