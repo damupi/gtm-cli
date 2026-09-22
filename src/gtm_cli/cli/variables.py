@@ -5,7 +5,12 @@ from typing import Annotated, Any
 
 import typer
 
-from gtm_cli.cli.helpers import add_authuser, resolve_workspace_context
+from gtm_cli.cli.helpers import (
+    add_authuser,
+    apply_json_merge_patch,
+    load_json_merge_patch,
+    resolve_workspace_context,
+)
 from gtm_cli.utils.output import (
     OutputFormat,
     confirm,
@@ -53,6 +58,10 @@ _VARIABLE_TYPES: list[dict[str, str]] = [
     {"type": "f", "name": "HTTP Referrer (full)", "key_params": "(none)"},
     {"type": "gas", "name": "Google Analytics Settings", "key_params": "trackingId"},
 ]
+
+VARIABLE_IDENTITY_FIELDS = frozenset(
+    {"accountId", "containerId", "workspaceId", "variableId", "path", "fingerprint"}
+)
 
 _GTM_VAR_BASE = "https://tagmanager.google.com/#/container/accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/variables/{variable_id}"
 
@@ -190,6 +199,23 @@ def create_variable(
         ),
     ] = None,
     notes: Annotated[str | None, typer.Option("--notes", help="Optional notes")] = None,
+    json_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--json-file",
+            help="Merge fields from a JSON file onto the variable body (top-level merge patch; "
+            "applied BEFORE --name/--type/--param/--param-file/--notes, which are applied on "
+            "top). Include only the fields you want to set. Arrays (e.g. parameter) fully "
+            "REPLACE whatever was built so far — there is no per-element merge. Needed for "
+            "nested list/map parameters (e.g. Lookup Table 'smm' or RegEx Table 'remm' "
+            "variables), which --param/--param-file cannot express since those only upsert a "
+            "single flat key:value into the parameter array. Identity fields (accountId, "
+            "containerId, workspaceId, variableId, path, fingerprint) are ignored with a "
+            "warning if present.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
 ) -> None:
     """Create a new variable in the workspace.
 
@@ -201,6 +227,10 @@ def create_variable(
     GTM variable references inside parameter values use double curly brackets:
     {{variableName}}. These are passed through verbatim — do not escape them.
 
+    For Lookup Table (smm) / RegEx Table (remm) variables, the `parameter` array needs
+    nested list/map structures that --param/--param-file cannot build — use --json-file
+    instead, applied before --name/--type/--param/--notes.
+
     Examples:
 
       # URL variable
@@ -211,6 +241,16 @@ def create_variable(
 
       # Custom JavaScript (always use --param-file for JS code)
       gtm variable create --name "My JS Var" --type jsm --param-file javascript:myscript.js
+
+      # Lookup Table row via JSON merge (patch.json contains the nested parameter array)
+      # {"parameter": [{"type": "list", "key": "map", "list": [{"type": "map", "map": [
+      #   {"type": "template", "key": "key", "value": "somehost\\\\.com"},
+      #   {"type": "template", "key": "value", "value": "G-XXXXXXX"}]}]}]}
+      gtm variable create --name "Host to GA4 ID" --type smm --json-file patch.json
+
+      # Combine: JSON merge for parameter, then --notes on top
+      gtm variable create --name "Host to GA4 ID" --type smm --json-file patch.json \\
+        --notes "Added by WEBDATA-123"
     """
     ctx = resolve_workspace_context()
 
@@ -218,6 +258,10 @@ def create_variable(
         "name": name,
         "type": variable_type,
     }
+
+    if json_file is not None:
+        patch = load_json_merge_patch(json_file, VARIABLE_IDENTITY_FIELDS)
+        apply_json_merge_patch(variable_body, patch)
 
     file_values = _parse_param_files(param_file)
 
@@ -302,6 +346,23 @@ def update_variable(
     notes: Annotated[
         str | None, typer.Option("--notes", help="Notes to set on the variable")
     ] = None,
+    json_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--json-file",
+            help="Merge fields from a JSON file onto the variable (top-level merge patch; "
+            "applied BEFORE --name/--type/--param/--param-file/--notes, which are applied on "
+            "top). Include only the fields you want to change. Arrays (e.g. parameter) fully "
+            "REPLACE the existing array — there is no per-element merge. Omitted fields are "
+            "preserved. Needed for nested list/map parameters (e.g. Lookup Table 'smm' or "
+            "RegEx Table 'remm' variables), which --param/--param-file cannot express since "
+            "those only upsert a single flat key:value into the existing parameter array. "
+            "Identity fields (accountId, containerId, workspaceId, variableId, path, "
+            "fingerprint) are ignored with a warning if present.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
 ) -> None:
     """Update an existing variable in the workspace.
@@ -314,6 +375,9 @@ def update_variable(
 
     GTM variable references inside parameter values use double curly brackets:
     {{variableName}}. These are passed through verbatim — do not escape them.
+
+    If --json-file is combined with other flags (--name, --param, etc.), the
+    JSON merge is applied first, then the flag-based changes on top of it.
 
     Examples:
 
@@ -328,6 +392,16 @@ def update_variable(
 
       # Update notes
       gtm variable update 123 --notes "Updated by WEBDATA-123"
+
+      # Replace a Lookup Table's parameter array via JSON merge (patch.json contains
+      # only the nested list/map structure --param/--param-file cannot build)
+      # {"parameter": [{"type": "list", "key": "map", "list": [{"type": "map", "map": [
+      #   {"type": "template", "key": "key", "value": "somehost\\\\.com"},
+      #   {"type": "template", "key": "value", "value": "G-XXXXXXX"}]}]}]}
+      gtm variable update 123 --json-file patch.json
+
+      # Combine: JSON merge for parameter, then --notes on top
+      gtm variable update 123 --json-file patch.json --notes "Updated by WEBDATA-123"
     """
     ctx = resolve_workspace_context()
 
@@ -346,6 +420,10 @@ def update_variable(
         raise typer.Exit(0)
 
     updated_body: dict[str, Any] = dict(variable)
+
+    if json_file is not None:
+        patch = load_json_merge_patch(json_file, VARIABLE_IDENTITY_FIELDS)
+        apply_json_merge_patch(updated_body, patch)
 
     if name is not None:
         updated_body["name"] = name
