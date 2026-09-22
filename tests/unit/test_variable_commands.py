@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 
 from gtm_cli.cli.helpers import WorkspaceContext
 from gtm_cli.cli.main import State, app
+from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import OutputFormat
 
 runner = CliRunner()
@@ -31,6 +32,30 @@ def mock_ctx():
         workspace_id="ws1",
     )
     return ctx
+
+
+# ---------------------------------------------------------------------------
+# get_variable
+# ---------------------------------------------------------------------------
+
+
+class TestGetVariable:
+    def test_get_variable_not_found(self, mock_ctx):
+        """A nonexistent/deleted variable ID exits cleanly with an actionable message.
+
+        Regression test: previously ResourceNotFoundError propagated uncaught and
+        printed a raw Python traceback instead of a clean CLI error.
+        """
+        mock_ctx.client.get_variable.side_effect = ResourceNotFoundError(
+            "Variable", "get variable 999"
+        )
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(app, ["variable", "get", "999"])
+
+        assert result.exit_code == 1
+        assert "Variable '999' not found" in result.output
+        assert "Traceback" not in result.output
 
 
 # ---------------------------------------------------------------------------
