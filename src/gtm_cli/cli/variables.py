@@ -11,6 +11,7 @@ from gtm_cli.cli.helpers import (
     load_json_merge_patch,
     resolve_workspace_context,
 )
+from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import (
     OutputFormat,
     confirm,
@@ -148,10 +149,11 @@ def get_variable(
     """Get details of a specific variable."""
     ctx = resolve_workspace_context()
 
-    variable = ctx.client.get_variable(variable_id=variable_id, **ctx.api_kwargs)
-    if not variable:
+    try:
+        variable = ctx.client.get_variable(variable_id=variable_id, **ctx.api_kwargs)
+    except ResourceNotFoundError:
         print_error(f"Variable '{variable_id}' not found")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     output(variable, fmt=ctx.state.output_format)
 
