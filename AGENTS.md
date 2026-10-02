@@ -4,7 +4,7 @@
 
 gtm-cli is a Python CLI for Google Tag Manager API v2, built with Typer. It manages GTM accounts, containers, workspaces, tags, triggers, variables, templates, versions, environments, and built-in variables.
 
-See [README.md](README.md) for command documentation, examples, and authentication setup. See [docs/AI-USAGE.md](docs/AI-USAGE.md) for non-obvious AI-agent usage patterns.
+See [README.md](README.md) for command documentation, examples, and authentication setup. Use the repository-owned `skills/gtm-cli/` asset for non-obvious AI-agent usage patterns.
 
 ## Development commands
 
@@ -63,9 +63,7 @@ Every command and option must be usable correctly from its nested `--help` outpu
 - Add runnable examples for non-trivial commands.
 - Fix missing capabilities in the CLI instead of documenting fragile workarounds.
 - Validate input locally and return actionable errors.
-- Do not duplicate exact option references in `docs/AI-USAGE.md`, the skill, or the agent. Those assets should cover only cross-command behavior, workflow, and safety.
-
-See [docs/FEATURE-self-documenting-cli.md](docs/FEATURE-self-documenting-cli.md) for rationale.
+- Do not duplicate exact option references in the skill or agent. Those assets should cover only cross-command behavior, workflow, and safety.
 
 ## Key conventions
 
@@ -161,7 +159,7 @@ Whenever a change adds, removes, renames, or alters a command, option, output sh
 - Review `skills/gtm-cli/SKILL.md` for stale cross-command rules and examples.
 - Review the relevant file under `skills/gtm-cli/references/`.
 - Review `agents/google-tag-manager-admin.md` for affected workflow or safety assumptions.
-- Update `docs/AI-USAGE.md`, `README.md`, and the command table in this file when applicable.
+- Update `README.md` and the command table in this file when applicable.
 - Check all documented examples against the current nested `--help` output.
 - Keep organization-specific IDs, naming rules, and ticket workflows out of the portable assets.
 
@@ -248,7 +246,7 @@ bd automatically syncs with git:
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
 
-For more details, see README.md and docs/QUICKSTART.md.
+For more details, see README.md.
 
 ## Landing the Plane (Session Completion)
 
