@@ -1,5 +1,99 @@
 # Agent Instructions
 
+## Project
+
+gtm-cli is a Python CLI for Google Tag Manager API v2, built with Typer. It manages GTM accounts, containers, workspaces, tags, triggers, variables, templates, versions, environments, and built-in variables.
+
+See [README.md](README.md) for command documentation, examples, and authentication setup. Use the repository-owned `skills/gtm-cli/` asset for non-obvious AI-agent usage patterns.
+
+## Development commands
+
+```bash
+# Install with dev dependencies
+uv pip install -e ".[dev]"
+
+# Run all checks
+uv run --extra dev ruff check src/ tests/
+uv run --extra dev mypy src/
+uv run --extra dev pytest tests/ -v
+
+# Run a single test file or test
+uv run --extra dev pytest tests/unit/test_tag_commands.py -v
+uv run --extra dev pytest tests/unit/test_tag_commands.py::TestSearchTags::test_search_by_trigger_id -v
+
+# Format
+uv run --extra dev ruff format src/ tests/
+uv run --extra dev ruff check --fix src/ tests/
+```
+
+`make check` requires globally installed tools. Prefer `uv run --extra dev` so checks use the project's environment.
+
+## Architecture
+
+- **Entry point:** `src/gtm_cli/cli/main.py` creates the Typer app, defines the global `State`, and registers subcommand groups.
+- **Commands:** each module under `src/gtm_cli/cli/` creates a `typer.Typer()` and registers it in `main.py`.
+- **Workspace context:** `cli/helpers.py` provides `resolve_workspace_context()`, which resolves account, container, and workspace IDs into a frozen `WorkspaceContext`.
+- **API client:** `core/client.py` contains `GTMClient`, wraps `googleapiclient.discovery`, and converts HTTP failures to typed exceptions.
+- **Output:** `utils/output.py` supports JSON, YAML, Rich tables, and tab-separated plain output. Table output automatically becomes plain output when piped.
+- **Authentication:** `core/auth.py` handles OAuth2 and service accounts. `core/config.py` stores YAML profiles under `~/.gtm-cli/profiles/`. Use `gtm login --no-gcloud` to force the OAuth client-secrets flow.
+
+## Testing
+
+Tests use `typer.testing.CliRunner`:
+
+- Mock `resolve_workspace_context` with a `WorkspaceContext` containing a `MagicMock` client.
+- Invoke commands with `runner.invoke(app, [...])`.
+- Assert exit code, output, and API-client call arguments.
+- Patch the helper in the command module, for example `gtm_cli.cli.tags.resolve_workspace_context`.
+
+Relevant suites include `tests/unit/test_tag_commands.py`, `test_trigger_commands.py`, `test_variable_commands.py`, and `test_workspace_context.py`.
+
+## Code style
+
+- Ruff line length: 100.
+- Strict mypy with `disallow_untyped_defs`.
+- Google API libraries have targeted type-checking relaxations in `pyproject.toml`.
+- Pre-commit runs Ruff lint/format, mypy, and standard repository checks.
+
+## Design principle: keep the CLI self-explanatory
+
+Every command and option must be usable correctly from its nested `--help` output alone.
+
+- Disambiguate related options in `help=` text.
+- Add runnable examples for non-trivial commands.
+- Fix missing capabilities in the CLI instead of documenting fragile workarounds.
+- Validate input locally and return actionable errors.
+- Do not duplicate exact option references in the skill or agent. Those assets should cover only cross-command behavior, workflow, and safety.
+
+## Key conventions
+
+- GTM resource IDs are strings.
+- Global flags such as `-a`, `-c`, `-w`, and `-f` precede the subcommand.
+- Preserve GTM `{{variableName}}` references verbatim in JavaScript and HTML.
+- Pass multi-line JavaScript or HTML through file options, not inline `--param` values.
+- Tag Additional Consent Checks use top-level `consentSettings` via `--consent-type`; they are not tag parameters.
+- JSON-file updates are top-level merge patches. Supplied arrays replace existing arrays, omitted fields remain, identity fields are ignored, and explicit command flags apply after the patch.
+- GTM permits at most three workspaces per container.
+
+## Available resource commands
+
+| Group | Commands |
+|-------|----------|
+| `gtm account` | `list`, `get` |
+| `gtm container` | `list`, `get` |
+| `gtm workspace` | `list`, `get`, `status`, `publish`, `create`, `delete`, `quick-preview`, `preview` |
+| `gtm tag` | `list`, `search`, `get`, `compare`, `create`, `update`, `pause`, `unpause`, `delete`, `audit-consent`, `audit-pixels`, `audit-setup-deps`, `audit-params` |
+| `gtm template` | `list`, `get`, `create`, `update`, `delete` |
+| `gtm trigger` | `list`, `get`, `create`, `update`, `delete` |
+| `gtm variable` | `list`, `get`, `types`, `create`, `update`, `delete`, `revert` |
+| `gtm version` | `list`, `get`, `diff` |
+| `gtm environment` | `list`, `get`, `create`, `delete` |
+| `gtm built-in-variable` | `list`, `enable`, `disable` |
+
+Treat nested `--help` as authoritative if this table ever disagrees with the executable.
+
+## Issue tracking
+
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
 ## Quick Reference
@@ -35,6 +129,39 @@ cp -rf source dest          # NOT: cp -r source dest
 - `ssh` - use `-o BatchMode=yes` to fail instead of prompting
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
+
+## Portable AI capability assets
+
+This repository ships tool-agnostic guidance for AI coding environments:
+
+- `skills/gtm-cli/SKILL.md` – portable Agent Skill for safe and correct CLI usage
+- `skills/gtm-cli/references/` – detailed resource guidance loaded only when needed
+- `agents/google-tag-manager-admin.md` – portable GTM administration agent prompt
+
+Do not assume the user runs Claude Code, Pi, or any other specific agent host. Do not add an installer that writes to a product-specific directory.
+
+When a user asks to make these assets available in their AI environment:
+
+1. Inspect or ask which host and configuration format they use.
+2. Read that host's local documentation before changing configuration.
+3. Explain the target files and any metadata adaptation required.
+4. Ask before writing outside this repository or replacing an existing skill or agent.
+5. Copy or link the assets only after approval, following the host's native conventions.
+6. Preserve the prompt body and safety gates. Adapt only unsupported metadata or capability declarations.
+7. Report where each asset was placed and how the user can verify discovery.
+
+The repository copies are canonical. Update them in the same change as any CLI behavior they document; do not treat an installed copy in a particular AI tool as the source of truth.
+
+### AI asset release checklist
+
+Whenever a change adds, removes, renames, or alters a command, option, output shape, confirmation behavior, credential rule, or mutation workflow:
+
+- Review `skills/gtm-cli/SKILL.md` for stale cross-command rules and examples.
+- Review the relevant file under `skills/gtm-cli/references/`.
+- Review `agents/google-tag-manager-admin.md` for affected workflow or safety assumptions.
+- Update `README.md` and the command table in this file when applicable.
+- Check all documented examples against the current nested `--help` output.
+- Keep organization-specific IDs, naming rules, and ticket workflows out of the portable assets.
 
 <!-- BEGIN BEADS INTEGRATION -->
 ## Issue Tracking with bd (beads)
@@ -119,7 +246,7 @@ bd automatically syncs with git:
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
 
-For more details, see README.md and docs/QUICKSTART.md.
+For more details, see README.md.
 
 ## Landing the Plane (Session Completion)
 

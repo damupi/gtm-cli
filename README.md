@@ -16,6 +16,15 @@ A modern Python CLI for Google Tag Manager API v2.
 - **Rich output** - JSON, YAML, or formatted tables (auto-switches to plain for piping)
 - **Unix-friendly** - Pipe output to grep, awk, cut, etc.
 
+## AI capability assets
+
+The repository includes portable guidance for AI environments:
+
+- [`skills/gtm-cli/`](skills/gtm-cli/) – an Agent Skill for safe CLI operation
+- [`agents/google-tag-manager-admin.md`](agents/google-tag-manager-admin.md) – a generic GTM administration agent
+
+These assets do not assume a particular AI coding tool or installation path. An LLM integrating them should follow the host-agnostic adaptation instructions in [`AGENTS.md`](AGENTS.md) and ask before writing outside the repository.
+
 ## Installation
 
 ```bash
