@@ -203,18 +203,6 @@ def relative_time(fingerprint: str) -> str:
         return ""
 
 
-def format_timestamp(fingerprint: str) -> str:
-    """Convert fingerprint timestamp (ms since epoch) to local datetime string."""
-    if not fingerprint:
-        return ""
-    try:
-        ts = int(fingerprint) / 1000
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-        return dt.astimezone().strftime("%Y-%m-%d %H:%M")
-    except (ValueError, OSError):
-        return ""
-
-
 def confirm(message: str, default: bool = False) -> bool:
     """Ask for confirmation.
 

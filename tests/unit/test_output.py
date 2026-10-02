@@ -8,7 +8,6 @@ from gtm_cli.utils.output import (
     OutputFormat,
     format_json,
     format_plain,
-    format_timestamp,
     output,
     print_dry_run,
     relative_time,
@@ -103,35 +102,6 @@ def test_output_format_enum():
     assert OutputFormat.YAML.value == "yaml"
     assert OutputFormat.TABLE.value == "table"
     assert OutputFormat.PLAIN.value == "plain"
-
-
-# ---------------------------------------------------------------------------
-# format_timestamp
-# ---------------------------------------------------------------------------
-
-
-class TestFormatTimestamp:
-    def test_format_timestamp_valid(self):
-        """Known ms timestamp -> expected 'YYYY-MM-DD HH:MM' string."""
-        # 1700000000000 ms = 2023-11-14 22:13:20 UTC
-        result = format_timestamp("1700000000000")
-        assert result != ""
-        # Should contain the date part (time varies by local timezone)
-        assert "2023-11-1" in result  # 14 or 15 depending on timezone
-
-    def test_format_timestamp_empty(self):
-        """Empty string -> empty string."""
-        assert format_timestamp("") == ""
-
-    def test_format_timestamp_invalid(self):
-        """Non-numeric string -> empty string."""
-        assert format_timestamp("abc") == ""
-
-    def test_format_timestamp_zero(self):
-        """Zero timestamp -> epoch date string."""
-        result = format_timestamp("0")
-        assert result != ""
-        assert "1970" in result or "1969" in result  # depends on timezone
 
 
 # ---------------------------------------------------------------------------

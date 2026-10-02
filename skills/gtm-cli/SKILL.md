@@ -112,24 +112,22 @@ gtm -a 123456789 -c 8983761 -w 3 built-in-variable disable analyticsSessionId
 ## Versions
 
 ```bash
-# List published versions (lightweight — no full tag/trigger/variable lists)
+# List stored version headers (lightweight – no full entity arrays)
 gtm -a 123456789 -c 8983761 -f json version list
-
-# Filter by publish date (useful for incident investigation)
-gtm -a 123456789 -c 8983761 version list --since 2025-06-01
-gtm -a 123456789 -c 8983761 version list --since 2025-06-01 --until 2025-06-30
 
 # Full version snapshot (includes complete tag[], trigger[], variable[] arrays)
 # version_id is positional, not a --version-id flag
 gtm -a 123456789 -c 8983761 version get 42
 
-# Diff two published versions — additions/removals/modifications across
-# tags, triggers, and variables. Also useful for incident investigation.
+# Diff two container versions – additions/removals/modifications across
+# tags, triggers, and variables
 gtm -a 123456789 -c 8983761 version diff 42 43
-gtm -a 123456789 -c 8983761 version diff 100 105 -f json
+gtm -a 123456789 -c 8983761 -f json version diff 100 105
 ```
 
-`version list` returns lightweight headers (`numTags`, `numTriggers`, `numVariables` counts, no entity arrays). `version get` returns the full snapshot: `tag[]`, `trigger[]`, `variable[]`. To **publish** a new version, use `workspace publish` above — there's no `version create`.
+The GTM API version-header list does **not** provide an authoritative publication timestamp or publish/re-publish history. `version list` therefore has no publication-date column and no `--since`/`--until` filters. Never interpret missing dates or an unfiltered version list as evidence that no deployment occurred in an incident window. A version `fingerprint` is opaque modification-state metadata, not a publication date.
+
+`version list` returns lightweight headers (`numTags`, `numTriggers`, `numVariables` counts, no entity arrays). `version get` returns the full snapshot: `tag[]`, `trigger[]`, `variable[]`, including the opaque `fingerprint` when supplied by the API. To **publish** a new version, use `workspace publish` above – there is no `version create`.
 
 ## Environments
 

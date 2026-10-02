@@ -1,12 +1,13 @@
-"""Tests for version CLI commands and helper functions."""
+"""Tests for version CLI commands."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
 from gtm_cli.cli.main import State, app
-from gtm_cli.cli.versions import _compute_diff, _fingerprint_in_range, _parse_date_ms
+from gtm_cli.cli.versions import _compute_diff
 from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import OutputFormat
 
@@ -117,87 +118,6 @@ class TestComputeDiff:
 
 
 # ===========================================================================
-# Pure function tests: _parse_date_ms
-# ===========================================================================
-
-
-class TestParseDateMs:
-    def test_parse_valid_date(self):
-        """'2025-06-15' -> exact UTC ms timestamp."""
-        ms = _parse_date_ms("2025-06-15")
-        # 2025-06-15T00:00:00Z = 1749945600 seconds = 1749945600000 ms
-        assert ms == 1_749_945_600_000
-
-    def test_parse_invalid_date_exits(self):
-        """'not-a-date' -> Exit (typer.Exit wraps as click.exceptions.Exit)."""
-        from click.exceptions import Exit
-
-        with pytest.raises(Exit):
-            _parse_date_ms("not-a-date")
-
-    def test_parse_end_of_day(self):
-        """end_of_day=True adds time to end of day (23:59:59.999)."""
-        start_ms = _parse_date_ms("2025-06-15", end_of_day=False)
-        end_ms = _parse_date_ms("2025-06-15", end_of_day=True)
-
-        # end_of_day should be later than start of day
-        assert end_ms > start_ms
-        # The difference should be approximately 24 hours minus 1 ms
-        diff = end_ms - start_ms
-        almost_24h = 24 * 60 * 60 * 1000 - 1
-        assert diff == almost_24h
-
-
-# ===========================================================================
-# Pure function tests: _fingerprint_in_range
-# ===========================================================================
-
-
-class TestFingerprintInRange:
-    def test_in_range(self):
-        """Fingerprint between since and until -> True."""
-        assert _fingerprint_in_range("500", since_ms=100, until_ms=1000) is True
-
-    def test_before_since(self):
-        """Fingerprint < since_ms -> False."""
-        assert _fingerprint_in_range("50", since_ms=100, until_ms=1000) is False
-
-    def test_after_until(self):
-        """Fingerprint > until_ms -> False."""
-        assert _fingerprint_in_range("1500", since_ms=100, until_ms=1000) is False
-
-    def test_empty_fingerprint(self):
-        """Empty string -> False."""
-        assert _fingerprint_in_range("", since_ms=100, until_ms=1000) is False
-
-    def test_no_bounds(self):
-        """Both None -> True (any fingerprint is in range)."""
-        assert _fingerprint_in_range("500", since_ms=None, until_ms=None) is True
-
-    def test_only_since(self):
-        """Only since_ms set -> True if fp >= since."""
-        assert _fingerprint_in_range("500", since_ms=100, until_ms=None) is True
-        assert _fingerprint_in_range("50", since_ms=100, until_ms=None) is False
-
-    def test_only_until(self):
-        """Only until_ms set -> True if fp <= until."""
-        assert _fingerprint_in_range("500", since_ms=None, until_ms=1000) is True
-        assert _fingerprint_in_range("1500", since_ms=None, until_ms=1000) is False
-
-    def test_exact_boundary_since(self):
-        """Fingerprint exactly equal to since_ms -> True."""
-        assert _fingerprint_in_range("100", since_ms=100, until_ms=1000) is True
-
-    def test_exact_boundary_until(self):
-        """Fingerprint exactly equal to until_ms -> True."""
-        assert _fingerprint_in_range("1000", since_ms=100, until_ms=1000) is True
-
-    def test_non_numeric_fingerprint(self):
-        """Non-numeric fingerprint -> False."""
-        assert _fingerprint_in_range("abc", since_ms=100, until_ms=1000) is False
-
-
-# ===========================================================================
 # Command-level tests: version get
 # ===========================================================================
 
@@ -241,13 +161,13 @@ class TestVersionGet:
 
 class TestVersionList:
     def test_version_list_success(self, mock_resolve):
-        """List returns all versions in a table/JSON."""
+        """List returns version headers without invented publication metadata."""
         state, client, account_id, container_id = mock_resolve
         client.list_versions.return_value = [
             {
                 "containerVersionId": "1",
                 "name": "v1",
-                "numericFingerprint": "1600000000000",
+                "fingerprint": "opaque-version-state-1",
                 "numTags": 5,
                 "numTriggers": 2,
                 "numVariables": 3,
@@ -255,7 +175,7 @@ class TestVersionList:
             {
                 "containerVersionId": "2",
                 "name": "v2",
-                "numericFingerprint": "1700000000000",
+                "fingerprint": "opaque-version-state-2",
                 "numTags": 6,
                 "numTriggers": 2,
                 "numVariables": 3,
@@ -267,40 +187,28 @@ class TestVersionList:
 
         assert result.exit_code == 0, result.output
         client.list_versions.assert_called_once()
-        # Both versions should appear in output
-        assert "v1" in result.output
-        assert "v2" in result.output
+        data = json.loads(result.output)
+        assert [item["name"] for item in data] == ["v1", "v2"]
+        assert all("published" not in item for item in data)
+        assert all("fingerprint" not in item for item in data)
 
-    def test_version_list_with_since_filters(self, mock_resolve):
-        """--since filters out versions before the date."""
-        state, client, account_id, container_id = mock_resolve
-        client.list_versions.return_value = [
-            {
-                "containerVersionId": "1",
-                "name": "old",
-                "numericFingerprint": "1600000000000",
-                "numTags": 5,
-                "numTriggers": 2,
-                "numVariables": 3,
-            },
-            {
-                "containerVersionId": "2",
-                "name": "new",
-                "numericFingerprint": "1700000000000",
-                "numTags": 6,
-                "numTriggers": 2,
-                "numVariables": 3,
-            },
-        ]
-
-        with patch(_PATCH_TARGET, return_value=(state, client, account_id, container_id)):
-            # 1600000000000 ms = 2020-09-13 UTC, 1700000000000 ms = 2023-11-14 UTC
-            # --since 2023-01-01 should exclude old (2020) and include new (2023-11)
-            result = runner.invoke(app, ["version", "list", "--since", "2023-01-01"])
+    def test_version_list_help_explains_publication_history_limit(self):
+        """Help must prevent version headers being used as deployment history."""
+        result = runner.invoke(app, ["version", "list", "--help"])
 
         assert result.exit_code == 0, result.output
-        assert "new" in result.output
-        assert "old" not in result.output
+        normalized = " ".join(result.output.split())
+        assert "does not provide an authoritative publication timestamp" in normalized
+        assert "publish/re-publish history" in normalized
+        assert "--since" not in result.output
+        assert "--until" not in result.output
+
+    def test_version_list_rejects_removed_date_filters(self):
+        """Date filters must not silently filter on fingerprints."""
+        result = runner.invoke(app, ["version", "list", "--since", "2025-01-01"])
+
+        assert result.exit_code != 0
+        assert "No such option" in result.output
 
     def test_version_list_empty(self, mock_resolve):
         """Empty list returns successfully with no data."""

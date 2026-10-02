@@ -1292,7 +1292,7 @@ class GTMClient:
     ) -> dict[str, Any]:
         """Get a specific container version with full detail.
 
-        Returns all tags, triggers, variables, and the fingerprint timestamp.
+        Returns all tags, triggers, variables, and the opaque API fingerprint.
 
         Args:
             account_id: The account ID
