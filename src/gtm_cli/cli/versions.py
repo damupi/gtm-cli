@@ -1,6 +1,5 @@
 """Version CLI commands."""
 
-from datetime import datetime, timezone
 from typing import Annotated, Any
 
 import typer
@@ -11,7 +10,6 @@ from gtm_cli.core.client import GTMClient, get_client
 from gtm_cli.utils.errors import ResourceNotFoundError
 from gtm_cli.utils.output import (
     OutputFormat,
-    format_timestamp,
     output,
     print_error,
     print_info,
@@ -21,7 +19,9 @@ from gtm_cli.utils.output import (
 app = typer.Typer(
     help="""Manage GTM container versions.
 
-Versions are published snapshots of your container. Each publish creates a new version.
+The GTM API exposes stored version headers and full version snapshots, but not an
+authoritative publication timestamp or publish/re-publish history. Do not use this
+command group to infer whether a deployment happened within a date range.
 
 Auto-detects account/container if you have only one of each.
 
@@ -47,58 +47,19 @@ def _api_kwargs(state: State) -> dict[str, Any]:
     }
 
 
-def _parse_date_ms(date_str: str, end_of_day: bool = False) -> int:
-    """Parse a YYYY-MM-DD string to milliseconds since epoch (UTC)."""
-    try:
-        dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    except ValueError:
-        print_error(f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD.")
-        raise typer.Exit(1) from None
-    if end_of_day:
-        dt = dt.replace(hour=23, minute=59, second=59)
-        return int(dt.timestamp() * 1000) + 999
-    return int(dt.timestamp() * 1000)
-
-
-def _fingerprint_in_range(fingerprint: str, since_ms: int | None, until_ms: int | None) -> bool:
-    """Check if a fingerprint timestamp falls within the given range."""
-    if not fingerprint:
-        return False
-    try:
-        fp = int(fingerprint)
-    except ValueError:
-        return False
-    return (since_ms is None or fp >= since_ms) and (until_ms is None or fp <= until_ms)
-
-
 @app.command("list")
-def list_versions(
-    since: Annotated[
-        str | None,
-        typer.Option(
-            "--since",
-            help="Show versions published on or after this date (YYYY-MM-DD)",
-        ),
-    ] = None,
-    until: Annotated[
-        str | None,
-        typer.Option(
-            "--until",
-            help="Show versions published on or before this date (YYYY-MM-DD)",
-        ),
-    ] = None,
-) -> None:
-    """List all versions in the container.
+def list_versions() -> None:
+    """List stored version headers in the container.
 
-    Examples:
+    The GTM API version-header response does not provide an authoritative publication
+    timestamp or publish/re-publish history. This command therefore does not display a
+    publication date or offer date filters. A missing date cannot be interpreted as
+    evidence that no deployment occurred.
+
+    Example:
         gtm version list
-        gtm version list --since 2025-01-01
-        gtm version list --since 2025-06-01 --until 2025-06-30
     """
     state, client, account_id, container_id = _resolve_container_context()
-
-    since_ms = _parse_date_ms(since) if since else None
-    until_ms = _parse_date_ms(until, end_of_day=True) if until else None
 
     versions = client.list_versions(
         account_id=account_id,
@@ -106,18 +67,10 @@ def list_versions(
         **_api_kwargs(state),
     )
 
-    if since_ms is not None or until_ms is not None:
-        versions = [
-            v
-            for v in versions
-            if _fingerprint_in_range(v.get("numericFingerprint", ""), since_ms, until_ms)
-        ]
-
     data = [
         {
             "version_id": v.get("containerVersionId", ""),
             "name": v.get("name", ""),
-            "published": format_timestamp(v.get("numericFingerprint", "")),
             "num_tags": v.get("numTags", 0),
             "num_triggers": v.get("numTriggers", 0),
             "num_variables": v.get("numVariables", 0),
@@ -157,7 +110,7 @@ def diff_versions(
     v1: Annotated[str, typer.Argument(help="First version ID")],
     v2: Annotated[str, typer.Argument(help="Second version ID")],
 ) -> None:
-    """Show what changed between two published versions.
+    """Show what changed between two container versions.
 
     Compares tags, triggers, and variables to find additions, removals,
     and modifications. Useful for incident investigation.
