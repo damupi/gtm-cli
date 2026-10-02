@@ -111,8 +111,8 @@ Both modes send the payload to the GTM API via the existing `GTMClient`.
 | 2b — trigger write ops | `feat:` | damupi fork |
 | 2c — variable write ops | `feat:` | damupi fork |
 
-## Non-goals
+## Initial delivery non-goals
 
 - No MCP layer
 - No publishing / version management (already covered by `gtm version` commands)
-- No template creation (out of scope for this fork)
+- Template creation was outside the initial write-operations scope; it is now supported by `gtm template create`

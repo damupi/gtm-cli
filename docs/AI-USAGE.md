@@ -8,7 +8,7 @@ Reference for AI agents using the `gtm` CLI. Covers the non-obvious behaviors th
 
 **Global flags (`-a`, `-c`, `-w`, `-f`) must go BEFORE the subcommand.**
 
-They are options on `gtm` itself, not on subcommands. Subcommands accept no flags except `--help`.
+They are options on `gtm` itself, not on subcommands. Resource-specific flags such as `--name`, `--type`, or `--json-file` still belong after their command; confirm them with the relevant nested `--help`.
 
 ```bash
 # ✓ correct

@@ -1,36 +1,33 @@
-# Keeping the `gtm-cli` Claude skill in sync
+# Keeping the repository AI assets in sync
 
-The `gtm-cli` skill (`~/.claude/skills/gtm-cli/` — a symlinked directory whose real files
-live on the `claude-memory` volume) teaches Claude Code agents how to use this CLI:
-`SKILL.md` holds the rules and workflows, and `references/*.md` hold per-resource
-command details (tags, triggers, variables, templates).
+The repository owns two portable AI capability assets:
 
-The skill is **hand-curated and lives outside this repo**, so nothing updates it
-automatically. It drifts every time the CLI changes.
+- `skills/gtm-cli/` teaches an agent how to operate this CLI safely and correctly.
+- `agents/google-tag-manager-admin.md` defines the planning, approval, validation, and reporting workflow for GTM administration.
+
+These files are canonical. Copies installed in a particular AI coding tool are consumers, not sources of truth.
 
 ## Policy
 
-**Every time there is a new version, release, update, or change to the CLI — any new
-command, removed command, new/changed flag, or changed behavior — the `gtm-cli` skill
-must be reviewed to see whether it needs updating with the new changes.**
+Every CLI release or behavior change must include a review of the affected AI assets in the same pull request. This includes any new, removed, or renamed command; changed option; changed output shape; changed confirmation behavior; credential-handling rule; or mutation workflow.
 
-The review happens when a feature branch is merged into `main` (see the
-"Release / merge workflow" section in CLAUDE.md). Concretely, check whether the merged
-changes make any of the following stale:
+Review:
 
-- `SKILL.md` **Rules** — absolute claims are the most fragile (e.g. "there is no
-  `--json` flag", "`trigger update` only supports `--name`"). A new flag can silently
-  falsify them.
-- `SKILL.md` command sections and **Typical workflow** — new commands that belong in
-  the standard flow (as `workspace quick-preview` did).
-- `references/<resource>.md` — command tables, option tables, limitations, and
-  examples for the resource that changed.
-- Missing sections — a brand-new command group (as `built-in-variable` was) needs its
-  own coverage.
+- `skills/gtm-cli/SKILL.md` – cross-command rules, safety gates, auth, validation, and standard workflow.
+- `skills/gtm-cli/references/*.md` – command tables, options, limitations, and examples for the changed resource.
+- `agents/google-tag-manager-admin.md` – planning, scope, approval, validation, and publishing assumptions.
+- `docs/AI-USAGE.md`, `README.md`, and the command table in `AGENTS.md` when the public command surface changes.
+
+Validate documented commands against the current nested `--help` output. Avoid copying every help option into the skill or agent: `--help` owns exact syntax, the skill owns non-obvious tool behavior, and the agent owns operational workflow and safety.
+
+## Portability
+
+Do not hard-code installation paths or metadata for one AI product in the repository assets. An AI environment may adapt unsupported frontmatter when installing the files, but it must preserve the prompt body and safety gates.
+
+Keep company-specific account IDs, naming standards, Jira workflows, and implementation conventions outside these portable assets.
 
 ## Past drift this policy exists to prevent
 
-- The skill claimed "there is no `--json` flag anywhere in the CLI" after
-  `--json-file` shipped on `tag update` / `trigger update` (issue #19).
-- `references/triggers.md` said trigger filters "require the GTM UI or the Python
-  client directly" after the CLI could do it.
+- The skill claimed there was no `--json` support after `--json-file` shipped for tag and trigger updates.
+- Trigger documentation said nested filters required the GTM UI after the CLI could update them.
+- A locally installed administration agent still claimed Custom Templates and custom-event trigger creation were unsupported after both issues had been fixed.
