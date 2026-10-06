@@ -64,6 +64,68 @@ class TestGetVariable:
 
 
 class TestCreateVariable:
+    def test_data_layer_variable_defaults_to_version_2_integer(self, mock_ctx):
+        """A Data Layer Variable without a version defaults to Version 2 as an integer."""
+        mock_ctx.client.create_variable.return_value = {"variableId": "9", "name": "DLV - event"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["variable", "create", "--name", "DLV - event", "--type", "v"],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.create_variable.call_args.kwargs["variable_body"]
+        assert body["parameter"] == [{"type": "integer", "key": "dataLayerVersion", "value": "2"}]
+
+    @pytest.mark.parametrize("version", ["1", "2"])
+    def test_data_layer_variable_accepts_explicit_version(self, mock_ctx, version):
+        """Explicit Data Layer Versions 1 and 2 are serialized as integers."""
+        mock_ctx.client.create_variable.return_value = {"variableId": "9", "name": "DLV - event"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "variable",
+                    "create",
+                    "--name",
+                    "DLV - event",
+                    "--type",
+                    "v",
+                    "--param",
+                    f"dataLayerVersion:{version}",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.create_variable.call_args.kwargs["variable_body"]
+        assert body["parameter"] == [
+            {"type": "integer", "key": "dataLayerVersion", "value": version}
+        ]
+
+    def test_data_layer_variable_rejects_invalid_version(self, mock_ctx):
+        """An unsupported Data Layer Version fails before the API call."""
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "variable",
+                    "create",
+                    "--name",
+                    "DLV - event",
+                    "--type",
+                    "v",
+                    "--param",
+                    "dataLayerVersion:3",
+                ],
+            )
+
+        assert result.exit_code == 1
+        assert "Invalid dataLayerVersion '3'" in result.output
+        assert "only 1 or 2" in result.output
+        mock_ctx.client.create_variable.assert_not_called()
+
     def test_create_variable_inline_param(self, mock_ctx):
         """--param key:value is included in the variable body."""
         mock_ctx.client.create_variable.return_value = {"variableId": "10", "name": "Click ID"}
@@ -192,13 +254,15 @@ class TestCreateVariable:
         assert "invalid" in result.output.lower()
 
     def test_create_variable_json_file_merges_before_flags(self, mock_ctx, tmp_path):
-        """--json-file merges onto the freshly built body (name/type), --notes applied on top."""
+        """Required flags and optional overrides take precedence over the JSON patch."""
         mock_ctx.client.create_variable.return_value = {"variableId": "13", "name": "Lookup"}
 
         patch_file = tmp_path / "patch.json"
         patch_file.write_text(
             json.dumps(
                 {
+                    "name": "Ignored patch name",
+                    "type": "c",
                     "parameter": [
                         {
                             "type": "list",
@@ -221,7 +285,7 @@ class TestCreateVariable:
                                 }
                             ],
                         }
-                    ]
+                    ],
                 }
             )
         )
@@ -307,6 +371,107 @@ class TestUpdateVariable:
                 {"type": "template", "key": "javascript", "value": "function() { return 1; }"}
             ],
         }
+
+    def test_existing_data_layer_variable_preserves_omitted_version(self, mock_ctx):
+        """A rename must not silently migrate a legacy DLV to Version 2."""
+        existing = {
+            "variableId": "99",
+            "name": "Legacy DLV",
+            "type": "v",
+            "parameter": [{"type": "template", "key": "name", "value": "event"}],
+        }
+        mock_ctx.client.get_variable.return_value = existing
+        mock_ctx.client.update_variable.return_value = {**existing, "name": "Renamed DLV"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["variable", "update", "99", "--name", "Renamed DLV", "--yes"],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_variable.call_args.kwargs["variable_body"]
+        assert body["parameter"] == existing["parameter"]
+        assert not any(param.get("key") == "dataLayerVersion" for param in body["parameter"])
+
+    @pytest.mark.parametrize("version", ["1", "2"])
+    def test_data_layer_variable_accepts_explicit_version(self, mock_ctx, version):
+        """Explicit update versions are serialized as integer parameters."""
+        existing = {
+            "variableId": "99",
+            "name": "Legacy DLV",
+            "type": "v",
+            "parameter": [{"type": "template", "key": "name", "value": "event"}],
+        }
+        mock_ctx.client.get_variable.return_value = existing
+        mock_ctx.client.update_variable.return_value = existing
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "variable",
+                    "update",
+                    "99",
+                    "--param",
+                    f"dataLayerVersion:{version}",
+                    "--yes",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_variable.call_args.kwargs["variable_body"]
+        version_params = [
+            param for param in body["parameter"] if param.get("key") == "dataLayerVersion"
+        ]
+        assert version_params == [{"type": "integer", "key": "dataLayerVersion", "value": version}]
+
+    def test_data_layer_variable_rejects_invalid_explicit_version(self, mock_ctx):
+        """An invalid explicit update version fails before the API write."""
+        existing = {
+            "variableId": "99",
+            "name": "Legacy DLV",
+            "type": "v",
+            "parameter": [{"type": "template", "key": "name", "value": "event"}],
+        }
+        mock_ctx.client.get_variable.return_value = existing
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                [
+                    "variable",
+                    "update",
+                    "99",
+                    "--param",
+                    "dataLayerVersion:3",
+                    "--yes",
+                ],
+            )
+
+        assert result.exit_code == 1
+        assert "Invalid dataLayerVersion '3'" in result.output
+        assert "only 1 or 2" in result.output
+        mock_ctx.client.update_variable.assert_not_called()
+
+    def test_conversion_to_data_layer_variable_defaults_to_version_2(self, mock_ctx):
+        """Converting another variable type to v adds the Version 2 integer default."""
+        existing = self._existing_variable()
+        mock_ctx.client.get_variable.return_value = existing
+        mock_ctx.client.update_variable.return_value = {**existing, "type": "v"}
+
+        with patch(_PATCH_TARGET, return_value=mock_ctx):
+            result = runner.invoke(
+                app,
+                ["variable", "update", "99", "--type", "v", "--yes"],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_ctx.client.update_variable.call_args.kwargs["variable_body"]
+        version_params = [
+            param for param in body["parameter"] if param.get("key") == "dataLayerVersion"
+        ]
+        assert version_params == [{"type": "integer", "key": "dataLayerVersion", "value": "2"}]
 
     def test_update_variable_param_file_preserves_whitespace(self, mock_ctx, tmp_path):
         """--param-file passes JS content verbatim with no line-wrapping."""

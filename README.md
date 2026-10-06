@@ -186,8 +186,12 @@ gtm trigger delete 312
 ### Variable Management
 
 ```bash
-# Create a simple variable
+# Create a Data Layer Variable (Data Layer Version 2 is added by default)
 gtm variable create --name "Click ID" --type v --param name:gtm.elementId
+
+# Select Data Layer Version 1 explicitly (only 1 or 2 are accepted)
+gtm variable create --name "Legacy Click ID" --type v \
+  --param name:gtm.elementId --param dataLayerVersion:1
 
 # Build a Lookup Table (smm) / RegEx Table (remm) row via a JSON merge patch —
 # --param/--param-file can't express the nested list/map structure these need
