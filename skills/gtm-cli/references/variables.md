@@ -40,7 +40,7 @@ Run `gtm variable create --help` / `gtm variable update --help` for the full fla
 
 | Type | Description | Key parameter |
 |------|-------------|---------------|
-| `v` | Data Layer Variable | `name` (DL key), `dataLayerVersion` |
+| `v` | Data Layer Variable | `name` (DL key), `dataLayerVersion` (`1` or `2`; create/type-conversion default: `2`) |
 | `u` | URL | `component` (e.g. `PATH`, `HOST`, `QUERY`) |
 | `k` | First-Party Cookie | `name` (cookie name) |
 | `c` | Constant | `value` |
@@ -73,8 +73,8 @@ Run `gtm variable create --help` / `gtm variable update --help` for the full fla
   "name": "DLV - event",
   "type": "v",
   "parameter": [
-    { "type": "INTEGER", "key": "dataLayerVersion", "value": "2" },
-    { "type": "TEMPLATE", "key": "name", "value": "event" }
+    { "type": "integer", "key": "dataLayerVersion", "value": "2" },
+    { "type": "template", "key": "name", "value": "event" }
   ],
   "fingerprint": "1710234567890",
   "path": "accounts/123456789/containers/8983761/workspaces/3/variables/12"
@@ -90,12 +90,15 @@ gtm -f json variable list
 # Get full details
 gtm variable get 12
 
-# Create a Data Layer Variable
-gtm variable create --name "DLV - event" --type v
+# Create a Data Layer Variable (dataLayerVersion defaults to integer Version 2)
+gtm variable create --name "DLV - event" --type v --param name:event
 
-# Create a DLV with full config via repeatable --param
-gtm variable create --name "DLV - event" --type v \
-  --param dataLayerVersion:2 --param name:event
+# Select Version 1 explicitly (only 1 or 2 are accepted)
+gtm variable create --name "DLV - legacy event" --type v \
+  --param dataLayerVersion:1 --param name:event
+
+# Existing DLV updates preserve an omitted version; set it only when intended
+gtm variable update 12 --param dataLayerVersion:2
 
 # Create a Constant variable
 gtm variable create --name "CONST - GA4 ID" --type c --param value:G-XXXXXXXXXX

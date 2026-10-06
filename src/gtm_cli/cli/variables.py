@@ -35,7 +35,11 @@ Example: gtm variable list
 
 # GTM variable type registry — used by `gtm variable types`
 _VARIABLE_TYPES: list[dict[str, str]] = [
-    {"type": "v", "name": "Data Layer Variable", "key_params": "name, dataLayerVersion"},
+    {
+        "type": "v",
+        "name": "Data Layer Variable",
+        "key_params": "name, dataLayerVersion (1|2; create/conversion default: 2)",
+    },
     {
         "type": "u",
         "name": "URL",
@@ -123,6 +127,33 @@ def _guard_inline_code(param_map: dict[str, str]) -> None:
             raise typer.Exit(1)
 
 
+def _normalize_data_layer_version(
+    variable_body: dict[str, Any], *, default_if_missing: bool = True
+) -> None:
+    """Validate DLV versions and optionally add the Version 2 default."""
+    if variable_body.get("type") != "v":
+        return
+
+    parameters: list[dict[str, Any]] = variable_body.get("parameter", [])
+    version_parameters = [
+        parameter for parameter in parameters if parameter.get("key") == "dataLayerVersion"
+    ]
+    if not version_parameters and default_if_missing:
+        version_parameters = [{"key": "dataLayerVersion", "value": "2"}]
+        parameters.append(version_parameters[0])
+        variable_body["parameter"] = parameters
+
+    for parameter in version_parameters:
+        version = str(parameter.get("value", ""))
+        if version not in {"1", "2"}:
+            print_error(
+                f"Invalid dataLayerVersion '{version}'. Data Layer Variables support only 1 or 2."
+            )
+            raise typer.Exit(1)
+        parameter["type"] = "integer"
+        parameter["value"] = version
+
+
 @app.command("list")
 def list_variables() -> None:
     """List all variables in the workspace."""
@@ -184,6 +215,7 @@ def create_variable(
             "--param",
             help=(
                 "Parameter as key:value (repeatable, e.g. --param name:gtm.elementId). "
+                "Data Layer Variables (type v) accept dataLayerVersion:1 or :2 and default to 2. "
                 "WARNING: do not use for multi-line JS/HTML — shell quoting corrupts strings. "
                 "Use --param-file instead."
             ),
@@ -222,6 +254,9 @@ def create_variable(
     """Create a new variable in the workspace.
 
     Run 'gtm variable types' to see all available types and their parameters.
+
+    Data Layer Variables (type: v) default to Data Layer Version 2. Override with
+    --param dataLayerVersion:1; only versions 1 and 2 are accepted.
 
     For Custom JavaScript variables (type: jsm), always use --param-file to supply
     the code from a file — passing JS inline via --param corrupts multi-line code silently.
@@ -265,6 +300,10 @@ def create_variable(
         patch = load_json_merge_patch(json_file, VARIABLE_IDENTITY_FIELDS)
         apply_json_merge_patch(variable_body, patch)
 
+    # Required CLI flags take precedence over values supplied by the merge patch.
+    variable_body["name"] = name
+    variable_body["type"] = variable_type
+
     file_values = _parse_param_files(param_file)
 
     if param or file_values:
@@ -287,6 +326,8 @@ def create_variable(
 
     if notes:
         variable_body["notes"] = notes
+
+    _normalize_data_layer_version(variable_body)
 
     if ctx.state.dry_run:
         print_dry_run(f"create variable '{name}' (type: {variable_type})")
@@ -328,6 +369,8 @@ def update_variable(
             "--param",
             help=(
                 "Upsert a parameter as key:value (repeatable). Updates matching key or appends. "
+                "For Data Layer Variables, dataLayerVersion accepts only 1 or 2; an omitted "
+                "version is preserved unless --type v converts another variable type (defaults to 2). "
                 "WARNING: do not use for multi-line JS/HTML — shell quoting corrupts strings. "
                 "Use --param-file instead."
             ),
@@ -371,6 +414,10 @@ def update_variable(
 
     Fetches the current variable, applies changes, and saves. Only specified
     fields are changed; everything else is preserved.
+
+    Existing Data Layer Variables without a dataLayerVersion keep that omission.
+    Supply --param dataLayerVersion:1 or :2 to set it explicitly. Changing another
+    variable type to v defaults to Data Layer Version 2 when no version is supplied.
 
     For Custom JavaScript variables (type: jsm), always use --param-file to supply
     the code from a file — passing JS inline via --param corrupts multi-line code silently.
@@ -459,6 +506,11 @@ def update_variable(
 
     if notes is not None:
         updated_body["notes"] = notes
+
+    converted_to_data_layer_variable = (
+        variable.get("type") != "v" and updated_body.get("type") == "v"
+    )
+    _normalize_data_layer_version(updated_body, default_if_missing=converted_to_data_layer_variable)
 
     if ctx.state.dry_run:
         print_dry_run(
