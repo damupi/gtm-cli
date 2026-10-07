@@ -254,15 +254,11 @@ gtm workspace quick-preview -f json   # Full API response, exits 1 on compilerEr
 
 ### Versions
 
-Inspect published container versions and compare changes:
+Inspect stored container versions and compare changes:
 
 ```bash
-# List versions with publish dates
+# List lightweight version headers
 gtm version list
-
-# Filter versions by date range (useful for incident investigation)
-gtm version list --since 2025-06-01
-gtm version list --since 2025-06-01 --until 2025-06-30
 
 # Get full details of a specific version (all tags, triggers, variables)
 gtm version get 42
@@ -270,6 +266,8 @@ gtm version get 42
 # Compare two versions to see what changed
 gtm version diff 42 43
 ```
+
+The GTM API version-header list does not expose an authoritative publication timestamp or publish/re-publish history. `gtm version list` therefore does not display a publication date or support date filters. Do not interpret the absence of a date as evidence that no deployment occurred.
 
 ### Environments
 
@@ -440,9 +438,9 @@ Remember to grant the service account access in Tag Manager:
 | `gtm built-in-variable list` | List enabled built-in variables |
 | `gtm built-in-variable enable` | Enable one or more built-in variables |
 | `gtm built-in-variable disable` | Disable one or more built-in variables |
-| `gtm version list` | List container versions (with publish date) |
+| `gtm version list` | List stored container version headers (the API provides no authoritative publication timestamps) |
 | `gtm version get` | Get full version details (all tags, triggers, variables) |
-| `gtm version diff` | Show what changed between two published versions |
+| `gtm version diff` | Show what changed between two container versions |
 | `gtm environment list` | List environments in the container |
 | `gtm environment get` | Get environment details (authorizationCode redacted unless `--format json`/`yaml`) |
 | `gtm environment create` | Create an environment pinned to a container version or workspace |
