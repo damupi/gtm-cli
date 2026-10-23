@@ -293,6 +293,40 @@ class GTMClient:
             self._handle_error(e, "create workspace")
             return {}
 
+    def update_workspace(
+        self,
+        account_id: str,
+        container_id: str,
+        workspace_id: str,
+        workspace_body: dict[str, Any],
+        profile_name: str | None = None,
+        service_account_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a workspace.
+
+        Args:
+            account_id: The account ID
+            container_id: The container ID
+            workspace_id: The workspace ID to update
+            workspace_body: Full workspace body (PUT semantics)
+            profile_name: Profile to use
+            service_account_path: Optional service account path
+
+        Returns:
+            Updated workspace dictionary
+        """
+        service = self._get_service(profile_name, service_account_path)
+        path = f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}"
+        request_kwargs: dict[str, Any] = {"path": path, "body": workspace_body}
+        fingerprint = workspace_body.get("fingerprint")
+        if fingerprint:
+            request_kwargs["fingerprint"] = fingerprint
+        try:
+            return service.accounts().containers().workspaces().update(**request_kwargs).execute()
+        except HttpError as e:
+            self._handle_error(e, f"update workspace {workspace_id}")
+            return {}
+
     def delete_workspace(
         self,
         account_id: str,

@@ -81,7 +81,7 @@ Every command and option must be usable correctly from its nested `--help` outpu
 |-------|----------|
 | `gtm account` | `list`, `get` |
 | `gtm container` | `list`, `get` |
-| `gtm workspace` | `list`, `get`, `status`, `publish`, `create`, `delete`, `quick-preview`, `preview` |
+| `gtm workspace` | `list`, `get`, `status`, `publish`, `create`, `update`, `delete`, `quick-preview`, `preview` |
 | `gtm tag` | `list`, `search`, `get`, `compare`, `create`, `update`, `pause`, `unpause`, `delete`, `audit-consent`, `audit-pixels`, `audit-setup-deps`, `audit-params` |
 | `gtm template` | `list`, `get`, `create`, `update`, `delete` |
 | `gtm trigger` | `list`, `get`, `create`, `update`, `delete` |

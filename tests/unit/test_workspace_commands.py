@@ -1,5 +1,6 @@
-"""Tests for workspace create and delete CLI commands."""
+"""Tests for workspace create, update, and delete CLI commands."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -39,7 +40,7 @@ def mock_client():
 
 
 # ---------------------------------------------------------------------------
-# GTMClient unit tests — create_workspace / delete_workspace
+# GTMClient unit tests — create_workspace / update_workspace / delete_workspace
 # ---------------------------------------------------------------------------
 
 
@@ -94,6 +95,38 @@ class TestClientCreateWorkspace:
         call_kwargs = mock_service.accounts().containers().workspaces().create.call_args.kwargs
         assert call_kwargs["body"] == {"name": "no-desc"}
         assert "description" not in call_kwargs["body"]
+
+
+class TestClientUpdateWorkspace:
+    def test_update_workspace_happy_path(self):
+        """update_workspace calls the API with the full body and correct path."""
+        from gtm_cli.core.client import GTMClient
+
+        client = GTMClient.__new__(GTMClient)
+        mock_service = MagicMock()
+        workspace_body = {
+            "workspaceId": "789",
+            "name": "Renamed",
+            "description": "Preserved",
+            "fingerprint": "abc",
+        }
+        mock_service.accounts().containers().workspaces().update().execute.return_value = (
+            workspace_body
+        )
+
+        with patch.object(client, "_get_service", return_value=mock_service):
+            result = client.update_workspace(
+                account_id="123",
+                container_id="456",
+                workspace_id="789",
+                workspace_body=workspace_body,
+            )
+
+        assert result == workspace_body
+        call_kwargs = mock_service.accounts().containers().workspaces().update.call_args.kwargs
+        assert call_kwargs["path"] == "accounts/123/containers/456/workspaces/789"
+        assert call_kwargs["body"] == workspace_body
+        assert call_kwargs["fingerprint"] == "abc"
 
 
 class TestClientDeleteWorkspace:
@@ -188,6 +221,151 @@ class TestCLIWorkspaceCreate:
         assert result.exit_code == 0, result.output
         call_kwargs = mock_client.create_workspace.call_args.kwargs
         assert call_kwargs["description"] == "some desc"
+
+
+# ---------------------------------------------------------------------------
+# CLI command tests — workspace update
+# ---------------------------------------------------------------------------
+
+
+class TestCLIWorkspaceUpdate:
+    def test_update_name_preserves_omitted_fields(self, mock_state, mock_client):
+        """A name-only update preserves the description and API metadata."""
+        current = {
+            "workspaceId": "77",
+            "name": "Old name",
+            "description": "Keep me",
+            "fingerprint": "abc",
+        }
+        mock_client.get_workspace.return_value = current.copy()
+        mock_client.update_workspace.return_value = {**current, "name": "New name"}
+
+        with (
+            patch(_PATCH_STATE, return_value=mock_state),
+            patch(_PATCH_CLIENT, return_value=mock_client),
+            patch(_PATCH_RESOLVE_ACCOUNT, return_value="a1"),
+            patch(_PATCH_RESOLVE_CONTAINER, return_value="c1"),
+        ):
+            result = runner.invoke(
+                app,
+                ["workspace", "update", "--workspace-id", "77", "--name", "New name"],
+            )
+
+        assert result.exit_code == 0, result.output
+        call_kwargs = mock_client.update_workspace.call_args.kwargs
+        assert call_kwargs["workspace_body"] == {
+            **current,
+            "name": "New name",
+        }
+        parsed_output = json.loads(result.output)
+        assert parsed_output["workspace_id"] == "77"
+        assert parsed_output["description"] == "Keep me"
+        assert "tagmanager.google.com" in parsed_output["url"]
+
+    def test_update_description_preserves_name(self, mock_state, mock_client):
+        """A description-only update preserves the existing name."""
+        current = {"workspaceId": "77", "name": "Keep name", "description": "Old"}
+        mock_client.get_workspace.return_value = current.copy()
+        mock_client.update_workspace.return_value = {**current, "description": "New description"}
+
+        with (
+            patch(_PATCH_STATE, return_value=mock_state),
+            patch(_PATCH_CLIENT, return_value=mock_client),
+            patch(_PATCH_RESOLVE_ACCOUNT, return_value="a1"),
+            patch(_PATCH_RESOLVE_CONTAINER, return_value="c1"),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "workspace",
+                    "update",
+                    "--workspace-id",
+                    "77",
+                    "--description",
+                    "New description",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_client.update_workspace.call_args.kwargs["workspace_body"]
+        assert body["name"] == "Keep name"
+        assert body["description"] == "New description"
+
+    def test_update_name_and_description(self, mock_state, mock_client):
+        """Name and description can be updated together."""
+        mock_client.get_workspace.return_value = {
+            "workspaceId": "77",
+            "name": "Old",
+            "description": "Old description",
+        }
+        mock_client.update_workspace.return_value = {
+            "workspaceId": "77",
+            "name": "New",
+            "description": "New description",
+        }
+
+        with (
+            patch(_PATCH_STATE, return_value=mock_state),
+            patch(_PATCH_CLIENT, return_value=mock_client),
+            patch(_PATCH_RESOLVE_ACCOUNT, return_value="a1"),
+            patch(_PATCH_RESOLVE_CONTAINER, return_value="c1"),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "workspace",
+                    "update",
+                    "--workspace-id",
+                    "77",
+                    "--name",
+                    "New",
+                    "--description",
+                    "New description",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        body = mock_client.update_workspace.call_args.kwargs["workspace_body"]
+        assert body["name"] == "New"
+        assert body["description"] == "New description"
+
+    def test_update_requires_a_change(self, mock_state, mock_client):
+        """At least one editable field is required."""
+        with (
+            patch(_PATCH_STATE, return_value=mock_state),
+            patch(_PATCH_CLIENT, return_value=mock_client),
+        ):
+            result = runner.invoke(app, ["workspace", "update", "--workspace-id", "77"])
+
+        assert result.exit_code == 1
+        assert "No changes specified" in result.output
+        mock_client.get_workspace.assert_not_called()
+        mock_client.update_workspace.assert_not_called()
+
+    def test_update_dry_run_does_not_mutate(self, mock_state, mock_client):
+        """--dry-run fetches and validates but skips the update request."""
+        mock_state.dry_run = True
+        mock_client.get_workspace.return_value = {
+            "workspaceId": "77",
+            "name": "Old",
+            "description": "Keep me",
+        }
+
+        with (
+            patch(_PATCH_STATE, return_value=mock_state),
+            patch(_PATCH_CLIENT, return_value=mock_client),
+            patch(_PATCH_RESOLVE_ACCOUNT, return_value="a1"),
+            patch(_PATCH_RESOLVE_CONTAINER, return_value="c1"),
+        ):
+            result = runner.invoke(
+                app,
+                ["workspace", "update", "--workspace-id", "77", "--name", "New"],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower()
+        mock_client.get_workspace.assert_called_once()
+        mock_client.update_workspace.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -76,12 +76,15 @@ gtm -a 123456789 -c 8983761 -w 3 -f json workspace quick-preview   # full API re
 gtm -a 123456789 -c 8983761 -w 3 workspace preview           # opens GTM preview mode in the browser (Tag Assistant URL — NOT a validation)
 gtm -u 1 workspace preview                                    # authuser for multi-account Google sessions
 
-# create / delete take --account-id/-a and --container-id/-c as THEIR OWN subcommand
-# flags too (in addition to the usual global ones) — an exception to the "global flags
-# only" rule, because you may want to target a different container without changing
-# your profile default.
+# create / update / delete take --account-id/-a and --container-id/-c as THEIR OWN
+# subcommand flags too (in addition to the usual global ones) — an exception to the
+# "global flags only" rule, because you may want to target a different container
+# without changing your profile default. Update and delete require their own local
+# --workspace-id/-w option.
 gtm workspace create --name "My Feature" --description "Work for Q3 campaign"
 gtm workspace create --container-id 8983761 --name "quick-picker"
+gtm workspace update --workspace-id 1000796 --name "Renamed Feature"       # preserves description, ID, and pending changes
+gtm workspace update --workspace-id 1000796 --description "Updated scope" # preserves the current name
 gtm workspace delete --workspace-id 1000796 --container-id 8983761        # --workspace-id is required here, not positional
 gtm workspace delete --workspace-id 1000796 --container-id 8983761 --yes  # this subcommand DOES take its own --yes
 ```
