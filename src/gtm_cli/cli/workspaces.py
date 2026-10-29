@@ -15,6 +15,7 @@ from gtm_cli.cli.main import get_state
 from gtm_cli.core.client import get_client
 from gtm_cli.utils.output import (
     OutputFormat,
+    is_interactive,
     output,
     print_dry_run,
     print_error,
@@ -418,6 +419,100 @@ def create_workspace(
     )
     print_info(f"Review: {add_authuser(review_url, state.authuser)}")
     output(workspace, fmt=state.output_format)
+
+
+@app.command("update")
+def update_workspace(
+    workspace_id: Annotated[
+        str,
+        typer.Option("--workspace-id", "-w", help="Workspace ID to update"),
+    ],
+    name: Annotated[
+        str | None,
+        typer.Option("--name", "-n", help="New workspace name"),
+    ] = None,
+    description: Annotated[
+        str | None,
+        typer.Option("--description", "-d", help="New workspace description"),
+    ] = None,
+    container_id: Annotated[
+        str | None,
+        typer.Option("--container-id", "-c", help="Container ID (overrides profile default)"),
+    ] = None,
+    account_id: Annotated[
+        str | None,
+        typer.Option("--account-id", "-a", help="Account ID (overrides profile default)"),
+    ] = None,
+) -> None:
+    """Update a workspace's name and/or description.
+
+    Fetches the current workspace before updating it, so fields omitted from
+    the command are preserved along with the workspace ID and pending changes.
+
+    Examples:
+        gtm workspace update --workspace-id 1000796 --name "New name"
+        gtm workspace update --workspace-id 1000796 --description "Updated description"
+        gtm workspace update --workspace-id 1000796 --name "New name" --description "Updated"
+    """
+    if name is None and description is None:
+        print_error("No changes specified. Use --name and/or --description.")
+        raise typer.Exit(1)
+
+    state = get_state()
+    client = get_client()
+
+    # Allow per-command overrides without mutating global state
+    if account_id:
+        state.account_id = account_id
+    if container_id:
+        state.container_id = container_id
+
+    resolved_account_id = resolve_account_id(state, client)
+    resolved_container_id = resolve_container_id(state, client, resolved_account_id)
+
+    workspace = client.get_workspace(
+        account_id=resolved_account_id,
+        container_id=resolved_container_id,
+        workspace_id=workspace_id,
+        profile_name=state.profile,
+        service_account_path=state.service_account,
+    )
+
+    if name is not None:
+        workspace["name"] = name
+    if description is not None:
+        workspace["description"] = description
+
+    if state.dry_run:
+        print_dry_run(
+            f"update workspace '{workspace.get('name', workspace_id)}' (ID: {workspace_id})"
+        )
+        raise typer.Exit(0)
+
+    result = client.update_workspace(
+        account_id=resolved_account_id,
+        container_id=resolved_container_id,
+        workspace_id=workspace_id,
+        workspace_body=workspace,
+        profile_name=state.profile,
+        service_account_path=state.service_account,
+    )
+
+    updated_id = result.get("workspaceId", workspace_id)
+    review_url = (
+        f"https://tagmanager.google.com/#/container"
+        f"/accounts/{resolved_account_id}/containers/{resolved_container_id}"
+        f"/workspaces/{updated_id}"
+    )
+    data = {
+        "workspace_id": updated_id,
+        "name": result.get("name", ""),
+        "description": result.get("description", ""),
+        "url": add_authuser(review_url, state.authuser),
+    }
+    if state.output_format == OutputFormat.TABLE and is_interactive():
+        print_success(f"Updated workspace '{data['name']}' (ID: {updated_id})")
+    output(data, fmt=state.output_format)
 
 
 @app.command("delete")

@@ -231,6 +231,11 @@ gtm workspace get 1000815
 gtm workspace create --name "my-feature"
 gtm workspace create --name "my-feature" --description "Work for Q3 campaign"
 
+# Rename a workspace, update its description, or both (omitted fields are preserved)
+gtm workspace update --workspace-id 1000796 --name "my-feature-v2"
+gtm workspace update --workspace-id 1000796 --description "Updated scope"
+gtm workspace update --workspace-id 1000796 --name "my-feature-v2" --description "Updated scope"
+
 # Delete a workspace (prompts for confirmation unless --yes)
 gtm workspace delete --workspace-id 1000796 --container-id 8983761
 gtm workspace delete --workspace-id 1000796 --container-id 8983761 --yes
@@ -403,6 +408,7 @@ Remember to grant the service account access in Tag Manager:
 | `gtm workspace list` | List workspaces |
 | `gtm workspace get` | Get workspace details |
 | `gtm workspace create` | Create a new workspace |
+| `gtm workspace update` | Update a workspace name and/or description |
 | `gtm workspace delete` | Delete a workspace |
 | `gtm workspace status` | Show pending changes |
 | `gtm workspace publish` | Create version and publish |
@@ -458,7 +464,7 @@ Remember to grant the service account access in Tag Manager:
 --verbose, -v       Enable debug logging
 --dry-run           Preview a mutating command without executing it. Supported by every
                     create/update/delete/publish/enable/disable command (tag, trigger,
-                    variable, template, workspace create/delete/publish, built-in-variable
+                    variable, template, workspace create/update/delete/publish, built-in-variable
                     enable/disable). Still runs validation and any confirmation prompt, then
                     prints "DRY RUN ..." instead of calling the API — no changes are made.
                     Read-only commands (list/get/search/status/etc.) ignore this flag.
