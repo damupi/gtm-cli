@@ -9,6 +9,7 @@
 * add --json-file merge patch to variable create/update ([27fb6a9](https://github.com/damupi/gtm-cli/commit/27fb6a9c27c81ff026c252bf58f4898322a20d4c)), closes [#30](https://github.com/damupi/gtm-cli/issues/30)
 * add built-in-variable commands and --json-file merge updates ([4639db1](https://github.com/damupi/gtm-cli/commit/4639db16e220820c712efa38c9fc2450590f108a))
 * add built-in-variable commands and --json-file merge updates ([5ab22af](https://github.com/damupi/gtm-cli/commit/5ab22af913f80056ca3b08551cdbc1b10d800838)), closes [#19](https://github.com/damupi/gtm-cli/issues/19)
+* add GitHub release updates and self-upgrade ([#44](https://github.com/damupi/gtm-cli/issues/44)) ([5e2c1d7](https://github.com/damupi/gtm-cli/commit/5e2c1d71616bd853fe2e68241bfd36e11c8141c1))
 * add gtm environment list/get/create/delete commands ([cf1be82](https://github.com/damupi/gtm-cli/commit/cf1be8212ed82b6a403818fada97b1864a4c2a32))
 * add GTM environment list/get/create/delete commands ([fbb5234](https://github.com/damupi/gtm-cli/commit/fbb523431ff6ee8d851e6a66406d58f775138d5b))
 * add param audit command and pixel param extraction ([5c273cb](https://github.com/damupi/gtm-cli/commit/5c273cbea5a5d4ecac9879f49cc87d872ec9582c))

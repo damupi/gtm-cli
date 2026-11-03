@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 
 from gtm_cli import __version__
+from gtm_cli.core.update import pending_notice
 from gtm_cli.utils.output import OutputFormat
 
 # Create the main app
@@ -53,8 +54,24 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def _show_update_notice() -> None:
+    """Print a cached update notice to stderr, if one is pending. Never raises.
+
+    A failure to render the notice must not turn an otherwise successful GTM
+    command into a failure, so both the lookup and the write are guarded.
+    Markup is disabled so paths or commands containing ``[`` render verbatim.
+    """
+    try:
+        notice = pending_notice()
+        if notice:
+            error_console.print(f"\n{notice}", markup=False)
+    except Exception:
+        pass
+
+
 @app.callback()
 def main(
+    ctx: typer.Context,
     profile: Annotated[
         str | None,
         typer.Option(
@@ -187,6 +204,11 @@ def main(
     state.yes = yes
     state.authuser = authuser
 
+    # Once-a-day update notice for normal commands. `gtm upgrade` reports its
+    # own fresh check, so skip it there.
+    if ctx.invoked_subcommand not in (None, "upgrade"):
+        ctx.call_on_close(_show_update_notice)
+
 
 def get_state() -> State:
     """Get the global CLI state."""
@@ -207,6 +229,7 @@ def register_commands() -> None:
     from gtm_cli.cli import tags as tags_cli
     from gtm_cli.cli import templates as templates_cli
     from gtm_cli.cli import triggers as triggers_cli
+    from gtm_cli.cli import upgrade as upgrade_cli
     from gtm_cli.cli import variables as variables_cli
     from gtm_cli.cli import versions as versions_cli
     from gtm_cli.cli import workspaces as workspaces_cli
@@ -216,6 +239,7 @@ def register_commands() -> None:
     app.command(name="setup")(setup_cli.setup)
     app.command(name="login")(auth_cli.login)
     app.command(name="logout")(auth_cli.logout)
+    app.command(name="upgrade")(upgrade_cli.upgrade)
     app.add_typer(profile_cli.app, name="profile")
     app.add_typer(accounts_cli.app, name="account")
     app.add_typer(containers_cli.app, name="container")
