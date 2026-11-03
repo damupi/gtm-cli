@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gtm-cli"
-version = "1.2.0"
+version = "1.3.0"
 description = "CLI tool for Google Tag Manager API v2"
 readme = "README.md"
 license = "MIT"
