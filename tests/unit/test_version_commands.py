@@ -1,6 +1,7 @@
 """Tests for version CLI commands."""
 
 import json
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -197,7 +198,8 @@ class TestVersionList:
         result = runner.invoke(app, ["version", "list", "--help"])
 
         assert result.exit_code == 0, result.output
-        normalized = " ".join(result.output.split())
+        plain_output = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.output)
+        normalized = " ".join(plain_output.split())
         assert "does not provide an authoritative publication timestamp" in normalized
         assert "publish/re-publish history" in normalized
         assert "--since" not in result.output

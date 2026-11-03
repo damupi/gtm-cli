@@ -1,34 +1,34 @@
 .PHONY: install dev lint type-check format test check clean build
 
-# Install for users
+# Install for users from the current checkout
 install:
-	pip install -e .
+	uv tool install .
 
 # Install with dev dependencies
 dev:
-	pip install -e ".[dev]"
-	pre-commit install
+	uv sync --extra dev
+	uv run --locked pre-commit install
 
 # Lint code
 lint:
-	ruff check src/ tests/
+	uv run --locked ruff check src/ tests/
 
 # Type check
 type-check:
-	mypy src/
+	uv run --locked mypy src/
 
 # Format code
 format:
-	ruff format src/ tests/
-	ruff check src/ tests/ --fix
+	uv run --locked ruff format src/ tests/
+	uv run --locked ruff check src/ tests/ --fix
 
 # Run tests
 test:
-	pytest
+	uv run --locked pytest
 
 # Run tests with coverage
 test-cov:
-	pytest --cov=gtm_cli --cov-report=html --cov-report=term-missing
+	uv run --locked pytest --cov=gtm_cli --cov-report=html --cov-report=term-missing
 
 # Run all checks (lint, type-check, test)
 check: lint type-check test
@@ -41,7 +41,7 @@ clean:
 
 # Build package
 build: clean
-	python -m build
+	uv build
 
 # Show help
 help:
