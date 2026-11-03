@@ -43,6 +43,19 @@ Verify installation:
 gtm --version
 ```
 
+To upgrade later, check the installed and latest stable release first, then reinstall the tag-pinned version:
+
+```bash
+gtm upgrade --check          # report installed/latest and the exact upgrade command
+gtm upgrade --check --json   # same, machine-readable
+gtm upgrade                  # confirm, then reinstall the latest tag
+gtm upgrade --yes            # skip the confirmation prompt
+```
+
+`gtm upgrade` discovers public `vX.Y.Z` GitHub releases (a wall-clock-bounded `curl` request to the Releases API's `/releases/latest`, falling back to public HTTPS `git ls-remote`) and reinstalls with the same method as your current copy (`uv tool install --force` or `pip install --upgrade` via `sys.executable -m pip`) using a tag-pinned `git+https://github.com/damupi/gtm-cli@vX.Y.Z` URL. The unrelated PyPI `gtm-cli` package is never used. Editable checkouts are never modified — you get a valid `git pull` command instead.
+
+When a newer stable release exists, an automatic once-a-day notice appears after normal commands on interactive terminals. It is silent on network failures, in CI, when stderr is not a TTY, or when `GTM_NO_UPDATE_CHECK` is set.
+
 ## Quick Start
 
 ### First-time Setup (Admin)
@@ -402,6 +415,7 @@ Remember to grant the service account access in Tag Manager:
 | `gtm init <url>` | Quick setup with shared credentials |
 | `gtm login` | Authenticate with Google |
 | `gtm logout` | Remove stored credentials |
+| `gtm upgrade` | Upgrade gtm-cli to the latest stable GitHub release (`--check` to only report; `--yes` to skip confirmation) |
 | `gtm profile list` | List all profiles |
 | `gtm profile create` | Create a new profile |
 | `gtm profile use` | Set default profile |
@@ -478,6 +492,10 @@ Remember to grant the service account access in Tag Manager:
 --authuser, -u      Append authuser=N to GTM URLs (env: GTM_AUTHUSER)
 ```
 
+The `gtm upgrade` command has its own local `--yes` option in addition to the global form, so both `gtm upgrade --yes` and `gtm -y upgrade` work.
+
+`GTM_NO_UPDATE_CHECK` disables the automatic once-a-day update notice after normal commands. The notice is also suppressed in CI or when stderr is not a TTY.
+
 Environment variables can be used instead of flags for common options:
 
 ```bash
@@ -501,6 +519,8 @@ Configuration is stored in `~/.gtm-cli/`:
 ```
 
 You can also place the client secrets file at `~/.config/gtm-cli/client_secrets.json` if you prefer to follow the XDG convention used by other tools (e.g. gafour).
+
+The update check caches its result at `~/.gtm-cli/update-check.json` for 24 hours. Delete that file to force the next automatic check to run again.
 
 ## Development
 
