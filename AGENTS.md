@@ -9,8 +9,8 @@ See [README.md](README.md) for command documentation, examples, and authenticati
 ## Development commands
 
 ```bash
-# Install with dev dependencies
-uv pip install -e ".[dev]"
+# Install locked dev dependencies (creates .venv)
+uv sync --extra dev
 
 # Run all checks
 uv run --extra dev ruff check src/ tests/
@@ -26,7 +26,17 @@ uv run --extra dev ruff format src/ tests/
 uv run --extra dev ruff check --fix src/ tests/
 ```
 
-`make check` requires globally installed tools. Prefer `uv run --extra dev` so checks use the project's environment.
+`make check` runs through `uv run --locked`. For individual commands, prefer `uv run --locked ...` so checks use the project's locked environment.
+
+## Releases and packaging
+
+Releases are GitHub-only. Do not add a PyPI publishing step: the `gtm-cli` name on PyPI belongs to an unrelated project.
+
+- Distribution is through `vX.Y.Z` GitHub tags. Users install a tag with `uv tool install "git+https://github.com/damupi/gtm-cli@vX.Y.Z"`; there is no reproducible install without a tag.
+- [Release Please](https://github.com/googleapis/release-please) is driven by `release-please-config.json` and `.release-please-manifest.json`, not by a `release-type` action input.
+- A release PR keeps the version synchronized across `pyproject.toml`, `src/gtm_cli/__init__.py`, `uv.lock`, and `skills/gtm-cli/compatibility.json`, and updates `CHANGELOG.md`.
+- CI installs the locked graph with `uv sync --locked --extra dev`, lints both `src/` and `tests/`, runs mypy and the full test suite on Python 3.10–3.12, and builds plus Twine-checks the sdist and wheel. CI never publishes.
+- Do not bump the project version by hand; let Release Please do it.
 
 ## Architecture
 

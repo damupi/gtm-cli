@@ -1,6 +1,6 @@
 # gtm-cli
 
-[![CI](https://github.com/oppianmatt/gtm-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/oppianmatt/gtm-cli/actions/workflows/ci.yml)
+[![CI](https://github.com/damupi/gtm-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/damupi/gtm-cli/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -27,9 +27,15 @@ These assets do not assume a particular AI coding tool or installation path. An 
 
 ## Installation
 
+Releases are distributed through GitHub tags only. There is no PyPI release: the `gtm-cli` name on PyPI belongs to an unrelated project, so do not install from PyPI.
+
+Pick a `vX.Y.Z` tag from the [releases page](https://github.com/damupi/gtm-cli/releases) and install it with [uv](https://docs.astral.sh/uv/):
+
 ```bash
-pip install gtm-cli
+uv tool install "git+https://github.com/damupi/gtm-cli@vX.Y.Z"
 ```
+
+Replace `vX.Y.Z` with the release tag you want (for example `v1.2.0`). Do not omit the tag — installing without one tracks `main` and is not reproducible.
 
 Verify installation:
 
@@ -91,9 +97,9 @@ gtm tag list
 # If you have multiple containers, specify which one
 gtm -c GTM-XXXX tag list
 
-# Different output formats
-gtm account list --format json
-gtm account list --format yaml
+# Different output formats (global flags must precede the subcommand)
+gtm -f json account list
+gtm -f yaml account list
 ```
 
 ### Tag List
@@ -119,7 +125,7 @@ gtm tag search --trigger "Booking"       # All tags on triggers matching "Bookin
 
 # Get one or more tags
 gtm tag get 298
-gtm tag get 298 302 303 313 --format json
+gtm -f json tag get 298 302 303 313
 
 # Compare tags side by side
 gtm tag compare 298 17                   # Compare two tags by ID
@@ -254,7 +260,7 @@ gtm -u 1 workspace preview       # With authuser for multi-account sessions
 
 # Validate the workspace compiles server-side, without creating a version
 gtm workspace quick-preview
-gtm workspace quick-preview -f json   # Full API response, exits 1 on compilerError
+gtm -f json workspace quick-preview   # Full API response, exits 1 on compilerError
 ```
 
 ### Versions
@@ -317,7 +323,7 @@ gtm tag list | cut -f2
 gtm tag list | cut -f5 | sort | uniq -c
 
 # Use with jq for JSON processing
-gtm tag list --format json | jq '.[].name'
+gtm -f json tag list | jq '.[].name'
 ```
 
 ## Multi-Profile Support
@@ -501,16 +507,14 @@ You can also place the client secrets file at `~/.config/gtm-cli/client_secrets.
 ### Setup
 
 ```bash
-git clone https://github.com/oppianmatt/gtm-cli.git
+git clone https://github.com/damupi/gtm-cli.git
 cd gtm-cli
 
-# Create venv and install
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
+# Create the virtualenv and install locked dev dependencies
+uv sync --extra dev
 
 # Install pre-commit hooks
-pre-commit install
+uv run --locked pre-commit install
 ```
 
 ### Commands
@@ -552,15 +556,20 @@ git commit -m "docs: update README with new commands"
 
 ### Release Process
 
-Releases are automated with [Release Please](https://github.com/googleapis/release-please):
+Releases are automated with [Release Please](https://github.com/googleapis/release-please) and distributed through GitHub tags only. There is no PyPI publishing step.
 
 1. Push commits to `main` using conventional commit messages
-2. Release Please automatically creates/updates a "Release PR"
-3. The PR accumulates changes and updates the changelog
+2. Release Please (configured by `release-please-config.json` and `.release-please-manifest.json`) automatically creates/updates a "Release PR"
+3. The Release PR keeps the version synchronized across:
+   - `pyproject.toml`
+   - `src/gtm_cli/__init__.py`
+   - `uv.lock`
+   - `skills/gtm-cli/compatibility.json`
+
+   and updates `CHANGELOG.md`
 4. When you merge the Release PR:
-   - Version is bumped in `pyproject.toml` and `__init__.py`
-   - GitHub Release is created with changelog
-   - Package is published to PyPI
+   - A `vX.Y.Z` GitHub tag and GitHub Release are created
+   - Users install that tag with `uv tool install "git+https://github.com/damupi/gtm-cli@vX.Y.Z"`
 
 ## License
 

@@ -10,48 +10,44 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+      - name: Set up uv and Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
+          enable-cache: true
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev
 
       - name: Lint with ruff
-        run: ruff check src/
+        run: uv run --locked --extra dev ruff check src/ tests/
 
       - name: Type check with mypy
-        run: mypy src/
+        run: uv run --locked --extra dev mypy src/
 
       - name: Run tests
-        run: pytest --cov=gtm_cli --cov-report=xml
+        run: uv run --locked --extra dev pytest --cov=gtm_cli --cov-report=xml
 
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+          enable-cache: true
 
-      - name: Install build tools
-        run: pip install build
+      - name: Build sdist and wheel
+        run: uv build
 
-      - name: Build package
-        run: python -m build
-
-      - name: Check package
-        run: |
-          pip install twine
-          twine check dist/*
+      - name: Check package metadata
+        run: uvx twine check dist/*

@@ -6,16 +6,14 @@ Thanks for your interest in contributing!
 
 ```bash
 # Clone the repo
-git clone https://github.com/oppianmatt/gtm-cli.git
+git clone https://github.com/damupi/gtm-cli.git
 cd gtm-cli
 
-# Create venv and install dev dependencies
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -e ".[dev]"
+# Install locked dev dependencies (creates .venv)
+uv sync --extra dev
 
 # Install pre-commit hooks
-pre-commit install
+uv run --locked pre-commit install
 ```
 
 Or using the Makefile:
