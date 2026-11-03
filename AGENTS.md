@@ -84,6 +84,7 @@ Every command and option must be usable correctly from its nested `--help` outpu
 - Tag Additional Consent Checks use top-level `consentSettings` via `--consent-type`; they are not tag parameters.
 - JSON-file updates are top-level merge patches. Supplied arrays replace existing arrays, omitted fields remain, identity fields are ignored, and explicit command flags apply after the patch.
 - GTM permits at most three workspaces per container.
+- `gtm --version` / `gtm -V` reports the installed CLI version; `gtm version` is the GTM container-version group. Run `gtm upgrade` (or `gtm upgrade --check`) to update the CLI. Installs are tag-pinned from `git+https://github.com/damupi/gtm-cli@vX.Y.Z`; never install the unrelated PyPI `gtm-cli` package.
 
 ## Available resource commands
 
@@ -99,6 +100,8 @@ Every command and option must be usable correctly from its nested `--help` outpu
 | `gtm version` | `list`, `get`, `diff` |
 | `gtm environment` | `list`, `get`, `create`, `delete` |
 | `gtm built-in-variable` | `list`, `enable`, `disable` |
+
+Root commands include `gtm upgrade` (`--check`, `--json`, `--yes`), which reinstalls a tag-pinned GitHub release.
 
 Treat nested `--help` as authoritative if this table ever disagrees with the executable.
 

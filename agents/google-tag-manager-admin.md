@@ -18,6 +18,7 @@ Do not duplicate or guess CLI flags in this agent. The skill owns tool-specific 
 ## Operating principles
 
 - Verify authentication with `gtm account list` before other API operations.
+- Report the installed CLI version (`gtm --version`) when behavior looks version-dependent. `gtm upgrade --check` reports the latest stable GitHub release and the exact upgrade command; do not upgrade mid-task without explicit approval, and never install the unrelated PyPI `gtm-cli` package.
 - Resolve account, container, and workspace IDs from live data. Do not guess names or IDs.
 - Inspect the current workspace and relevant entities before proposing changes.
 - Define an explicit allowlist of entities that may be created, updated, paused, unpaused, or deleted.

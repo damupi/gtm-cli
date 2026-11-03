@@ -46,8 +46,26 @@ gtm account list
 | `--container-id` | `-c` | GTM container ID (numeric, not GTM-XXXX) |
 | `--workspace-id` | `-w` | GTM workspace ID |
 | `--format` | `-f` | Output format: `json`, `yaml`, `table`, `plain` |
-| `--yes` | `-y` | Skip confirmation prompts globally; required before `tag`/`trigger` deletion because those delete subcommands have no local `--yes` |
+| `--yes` | `-y` | Skip confirmation prompts globally; required before `tag`/`trigger` deletion because those delete subcommands have no local `--yes`. `gtm upgrade` has its own local `--yes` as well as supporting the global form |
 | `--dry-run` | | Preview a mutating command without calling the API — see the `--dry-run` rule above about verifying it's actually honored on your installed version |
+
+---
+
+## Installed version and self-update
+
+`gtm --version` / `gtm -V` prints the installed CLI version. `gtm version` is the **GTM container-version** group, not the CLI version. To update the CLI itself:
+
+```bash
+gtm upgrade --check          # installed + latest stable release + update availability + exact command
+gtm upgrade --check --json   # machine-readable check
+gtm upgrade                  # confirm, then reinstall the latest stable GitHub tag
+gtm upgrade --yes            # skip the confirmation prompt
+```
+
+- Releases are public `vX.Y.Z` GitHub tags. `gtm upgrade` uses a wall-clock-bounded `curl` request to the Releases API's `/releases/latest`, falling back to public HTTPS `git ls-remote`; no SSH setup or tokens are involved, and git/install subprocesses never prompt.
+- Installs are tag-pinned (`git+https://github.com/damupi/gtm-cli@vX.Y.Z`) and reuse the current install method (`uv tool install --force` or `sys.executable -m pip install --upgrade`). The unrelated PyPI `gtm-cli` package is never used.
+- Editable checkouts are never modified; the command prints a valid `git pull` command instead.
+- Do not run `gtm upgrade` during a session that is making GTM changes unless the user asked for it. An automatic once-a-day notice may appear on stderr after normal commands when an update exists; it is disabled by `GTM_NO_UPDATE_CHECK=1`, in CI, or when stderr is not a TTY.
 
 ---
 
