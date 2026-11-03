@@ -1,0 +1,77 @@
+# Changelog
+
+## [1.3.0](https://github.com/damupi/gtm-cli/compare/v1.2.0...v1.3.0) (2026-11-03)
+
+
+### Features
+
+* add --clear-setup-tag and --clear-teardown-tag flags to tag update ([869c4af](https://github.com/damupi/gtm-cli/commit/869c4af6dc692f49bab664275657ba0f4d9d865e))
+* add --json-file merge patch to variable create/update ([27fb6a9](https://github.com/damupi/gtm-cli/commit/27fb6a9c27c81ff026c252bf58f4898322a20d4c)), closes [#30](https://github.com/damupi/gtm-cli/issues/30)
+* add built-in-variable commands and --json-file merge updates ([4639db1](https://github.com/damupi/gtm-cli/commit/4639db16e220820c712efa38c9fc2450590f108a))
+* add built-in-variable commands and --json-file merge updates ([5ab22af](https://github.com/damupi/gtm-cli/commit/5ab22af913f80056ca3b08551cdbc1b10d800838)), closes [#19](https://github.com/damupi/gtm-cli/issues/19)
+* add gtm environment list/get/create/delete commands ([cf1be82](https://github.com/damupi/gtm-cli/commit/cf1be8212ed82b6a403818fada97b1864a4c2a32))
+* add GTM environment list/get/create/delete commands ([fbb5234](https://github.com/damupi/gtm-cli/commit/fbb523431ff6ee8d851e6a66406d58f775138d5b))
+* add param audit command and pixel param extraction ([5c273cb](https://github.com/damupi/gtm-cli/commit/5c273cbea5a5d4ecac9879f49cc87d872ec9582c))
+* add portable GTM AI assets ([9f5e558](https://github.com/damupi/gtm-cli/commit/9f5e5587b426a7af6c368bfc56fdbdd5bf17ce0a))
+* add portable GTM AI assets ([9657eae](https://github.com/damupi/gtm-cli/commit/9657eae18e2f942d7074182cd65beb27db60a9bd))
+* add tag compare command for cross-platform comparison ([829acfe](https://github.com/damupi/gtm-cli/commit/829acfe04caa28e259a89152fb3333e0b5f033a5))
+* add tag comparison, param audit, trigger search, and setup dep audit ([824b1c7](https://github.com/damupi/gtm-cli/commit/824b1c785285cbda5e68659cb373cb9c3b9e9e71))
+* add tag search and pixel audit commands ([67b7f95](https://github.com/damupi/gtm-cli/commit/67b7f95e1e1f774673a2d1e8fe8b4d88d47c4279))
+* add tag update command and refactor tag operations ([f4c559f](https://github.com/damupi/gtm-cli/commit/f4c559f2e62b1456748f41111ad26f1477b494fb))
+* add tag/trigger create and delete commands ([da68f3e](https://github.com/damupi/gtm-cli/commit/da68f3ed18e89417151a544d2020c2c4ef3ae585))
+* add trigger search, multi-ID get, and setup dep audit ([975f957](https://github.com/damupi/gtm-cli/commit/975f957d5486ee115bfa1087de2c1cb7099fa968))
+* add version diff, date filters, and improve version/tag commands ([def22f3](https://github.com/damupi/gtm-cli/commit/def22f3b72a97fa498cb779ebeb59c7b31191e32))
+* add workspace preview command and move add_authuser to helpers ([85a95ac](https://github.com/damupi/gtm-cli/commit/85a95ac766787e36d7d0216d398e4ccbed174e55))
+* add workspace update command ([#39](https://github.com/damupi/gtm-cli/issues/39)) ([6484b51](https://github.com/damupi/gtm-cli/commit/6484b51e0b813f83d3f0f3762356034866ec0d5c))
+* **auth:** add --no-gcloud flag to force OAuth2 client secrets flow ([b7868b8](https://github.com/damupi/gtm-cli/commit/b7868b8a6861078209cb38dd6db9627a199666da))
+* **cli:** improve self-documentation based on AI-USAGE.md ([#6](https://github.com/damupi/gtm-cli/issues/6)) ([51badec](https://github.com/damupi/gtm-cli/commit/51badecc9119161f4a9d9d2b12123d6024c9ac5c))
+* **tags/triggers:** add param-based tag update and trigger name lookup ([#3](https://github.com/damupi/gtm-cli/issues/3)) ([815ac89](https://github.com/damupi/gtm-cli/commit/815ac89f4120688d18be3fad4c0ebf5bf08c2182))
+* **tags:** add --consent-type to tag create/update for consentSettings ([2641648](https://github.com/damupi/gtm-cli/commit/2641648522e0e7f54f631355ce84703f886be962))
+* **tags:** add --consent-type to tag create/update for consentSettings ([b12c052](https://github.com/damupi/gtm-cli/commit/b12c0520c95498fb510c4052250ce3727c83f0d7)), closes [#14](https://github.com/damupi/gtm-cli/issues/14)
+* **tags:** add --notes to tag create/update ([#11](https://github.com/damupi/gtm-cli/issues/11)) ([912a2a6](https://github.com/damupi/gtm-cli/commit/912a2a6fb9646bdea06dc99b0451162c4c426358)), closes [#10](https://github.com/damupi/gtm-cli/issues/10)
+* **templates:** add gtm template command group ([#13](https://github.com/damupi/gtm-cli/issues/13)) ([b9e9227](https://github.com/damupi/gtm-cli/commit/b9e9227f818ff78126cd842a0df9037625e42bcc)), closes [#8](https://github.com/damupi/gtm-cli/issues/8)
+* **triggers:** support customEventFilter for customEvent triggers ([#12](https://github.com/damupi/gtm-cli/issues/12)) ([8e84e35](https://github.com/damupi/gtm-cli/commit/8e84e35082e4145be4665b69d48644430ab552c1)), closes [#9](https://github.com/damupi/gtm-cli/issues/9)
+* **variables:** add create, update, delete, revert commands ([3523c79](https://github.com/damupi/gtm-cli/commit/3523c79942e580c433fb72c988beec0b1840a2c9))
+* **variables:** add create, update, delete, revert commands ([63ad3ad](https://github.com/damupi/gtm-cli/commit/63ad3ad45a50a40d3def923f52e6489582f201bd))
+* **variables:** make CLI self-documenting ([#5](https://github.com/damupi/gtm-cli/issues/5)) ([78e7374](https://github.com/damupi/gtm-cli/commit/78e73744130d44a28f8cb2376b8984338b9a6bdd))
+* **workspace:** add quick-preview command for server-side validation ([72a13c3](https://github.com/damupi/gtm-cli/commit/72a13c3389921890e6f6d28e2f216a514cf7f13e))
+* **workspace:** add quick-preview command for server-side validation ([31c35ca](https://github.com/damupi/gtm-cli/commit/31c35cac4cc4017cf44209a982ff6160706b84e4)), closes [#20](https://github.com/damupi/gtm-cli/issues/20)
+* **workspaces:** add create and delete commands ([8996acb](https://github.com/damupi/gtm-cli/commit/8996acb69155d294e4ef17bfbc7072c471f0d686))
+* **workspaces:** add create and delete commands ([622abd0](https://github.com/damupi/gtm-cli/commit/622abd0583e04234884f3b52cbd651e9a18a6c74))
+
+
+### Bug Fixes
+
+* address code review findings ([49cced6](https://github.com/damupi/gtm-cli/commit/49cced64c7fb9b419cc3b7810f75821b6420028b))
+* address remaining review suggestions ([2a145da](https://github.com/damupi/gtm-cli/commit/2a145da00bc673c95d29e3dc879d72ece20cb560))
+* catch ResourceNotFoundError in variable get ([3b0cc4c](https://github.com/damupi/gtm-cli/commit/3b0cc4ce650773a0028254df1a5a87087a59d9ec))
+* catch ResourceNotFoundError in variable get ([d636183](https://github.com/damupi/gtm-cli/commit/d636183136867c82954adc70f15c46167584ae8d))
+* create_environment 400s without accountId/containerId in body ([944f9dd](https://github.com/damupi/gtm-cli/commit/944f9dddaf235d5142703e915c7ca8956454caf1))
+* default data layer variables to version 2 ([#37](https://github.com/damupi/gtm-cli/issues/37)) ([5cfb7c5](https://github.com/damupi/gtm-cli/commit/5cfb7c584737eb3cee1ada3d95fa74ac69373dad))
+* honor --dry-run in all mutating commands ([49c605f](https://github.com/damupi/gtm-cli/commit/49c605f9b8985b4b9dc7e0abd88cc389500ec090))
+* honor --dry-run in all mutating commands ([f8490bc](https://github.com/damupi/gtm-cli/commit/f8490bce383d609131faa615a4b9c46a0c684765))
+* honor --dry-run in environment create/delete ([f29da9e](https://github.com/damupi/gtm-cli/commit/f29da9e96a67f0994c415a2682e3688e1d34d153))
+* **output:** use print() for JSON/YAML to prevent Rich markup corruption ([#7](https://github.com/damupi/gtm-cli/issues/7)) ([42c9a4b](https://github.com/damupi/gtm-cli/commit/42c9a4b54d08d00857d257428f80c8e1303cc7b0))
+* redact authorizationCode in environment create table/plain output ([10f379d](https://github.com/damupi/gtm-cli/commit/10f379dfaed838c656e9d0d1ea781f58593ac88e))
+* stop treating version fingerprints as publish dates ([#35](https://github.com/damupi/gtm-cli/issues/35)) ([d7feffc](https://github.com/damupi/gtm-cli/commit/d7feffce716e19bf76842077d6641a3f973efa10))
+* **tags:** add --param to tag create for Community/Custom Template fields ([b9c1800](https://github.com/damupi/gtm-cli/commit/b9c18000d270867c29a1cc048e87459a0c8ddbc0))
+* **tags:** add --param to tag create for Community/Custom Template fields ([6fdc291](https://github.com/damupi/gtm-cli/commit/6fdc291262a4a05982f5ee8e6e0cdbd6b8a7eb01)), closes [#17](https://github.com/damupi/gtm-cli/issues/17)
+* **variables:** add --param-file to prevent JS code line-wrapping ([#4](https://github.com/damupi/gtm-cli/issues/4)) ([a07e80a](https://github.com/damupi/gtm-cli/commit/a07e80acf9689eced62499e75c26ecd12ce1e1ab))
+
+
+### Documentation
+
+* add CLAUDE.md for Claude Code context ([8406307](https://github.com/damupi/gtm-cli/commit/8406307182209461820c8140419cacea48304776))
+* add gtm-cli skill maintenance policy and merge workflow ([4789e7a](https://github.com/damupi/gtm-cli/commit/4789e7afd1e36e084db9b470c64cc7534a098ba3))
+* add missing command examples and environment variable documentation ([e6f13bd](https://github.com/damupi/gtm-cli/commit/e6f13bdeaece90bc182deefb54409310d09b5a01))
+* add new tag commands to README ([f43a8c0](https://github.com/damupi/gtm-cli/commit/f43a8c0e470eea810e89ff3c7d518817114446e4))
+* add self-documenting CLI feature notes ([7cd24d5](https://github.com/damupi/gtm-cli/commit/7cd24d544c2c7499ebf82114a681357a7f2b84ab))
+* **CLAUDE.md:** reflect current CLI state after recent PRs ([4d4c6e2](https://github.com/damupi/gtm-cli/commit/4d4c6e268027cfc27a43577622f9f67167b463ff))
+* link CLAUDE.md to README for full command reference ([e002547](https://github.com/damupi/gtm-cli/commit/e0025472f961a9b7f686b753f2fcac76768aa1c9))
+* link design-principle rationale from CLAUDE.md ([184d1e7](https://github.com/damupi/gtm-cli/commit/184d1e76b7c3ede414f6bec9536dd0befbcd7255))
+* skill maintenance policy, formatting fixes, feature notes ([274aba8](https://github.com/damupi/gtm-cli/commit/274aba8a9089e518083fc29473f30c0069a93a4b))
+* **tags:** clarify --consent-type vs --param in --help ([ceac504](https://github.com/damupi/gtm-cli/commit/ceac5040b5e76b79843f33e0f4767bde85e026e1))
+* **tags:** clarify --consent-type vs --param in --help and CLAUDE.md ([5a5dd93](https://github.com/damupi/gtm-cli/commit/5a5dd937a817791d8fb365a47298b18985dd5544))
+* treat environment authorizationCode as credential-bearing data ([eb501d6](https://github.com/damupi/gtm-cli/commit/eb501d6e39a9bb77e7a6264f7c710f91df87a7c6))
+* treat environment authorizationCode as credential-bearing data ([eff26e2](https://github.com/damupi/gtm-cli/commit/eff26e2414340991c9d83417ea4e825e3f1a31f1))
+* warn authorizationCode is a credential directly in --help ([#29](https://github.com/damupi/gtm-cli/issues/29)) ([12be0a0](https://github.com/damupi/gtm-cli/commit/12be0a0373067508f06dbf5cc792e4db3e9e2436))
