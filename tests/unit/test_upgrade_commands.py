@@ -1,6 +1,7 @@
 """Typer integration tests for the gtm upgrade command and update notice."""
 
 import json
+import re
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -20,9 +21,10 @@ def _completed(stdout="", returncode=0, stderr=""):
 def test_upgrade_help_documents_flags():
     result = runner.invoke(app, ["upgrade", "--help"])
     assert result.exit_code == 0
-    assert "--check" in result.stdout
-    assert "--yes" in result.stdout
-    assert "--json" in result.stdout
+    plain_output = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.stdout)
+    assert "--check" in plain_output
+    assert "--yes" in plain_output
+    assert "--json" in plain_output
 
 
 def test_upgrade_check_reports_available_update():
